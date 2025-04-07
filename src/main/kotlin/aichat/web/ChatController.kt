@@ -8,7 +8,7 @@ import org.springframework.web.bind.annotation.RestController
 
 
 @RestController
-@RequestMapping("/chat")
+@RequestMapping("api/chat")
 class ChatController(chatClientBuilder: ChatClient.Builder) {
 
     private val chatClient: ChatClient = chatClientBuilder.build()
