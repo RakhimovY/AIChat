@@ -2,6 +2,7 @@ package aichat.core.utils
 
 import io.jsonwebtoken.Jwts
 import io.jsonwebtoken.SignatureAlgorithm
+import io.jsonwebtoken.security.Keys
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken
 import org.springframework.security.core.Authentication
@@ -30,12 +31,13 @@ class JwtTokenUtils(
             .setSubject(userDetails.username)
             .setIssuedAt(now)
             .setExpiration(accessTokenExpirationDate)
-            .signWith(SignatureAlgorithm.HS256, secret)
+            .signWith(Keys.hmacShaKeyFor(secret.toByteArray()), SignatureAlgorithm.HS256)
             .compact()
     }
 
-    private fun getAllClaims(token: String) = Jwts.parser()
-        .setSigningKey(secret)
+    private fun getAllClaims(token: String) = Jwts.parserBuilder()
+        .setSigningKey(secret.toByteArray())
+        .build()
         .parseClaimsJws(token)
         .body
 
@@ -46,7 +48,11 @@ class JwtTokenUtils(
     fun isValid(token: String, userDetails: UserDetails) =
         getUsername(token) == userDetails.username && !isExpired(token)
 
-    fun getAuthentication(token: String, existingAuth: Authentication?, userDetails: UserDetails): UsernamePasswordAuthenticationToken {
+    fun getAuthentication(
+        token: String,
+        existingAuth: Authentication?,
+        userDetails: UserDetails
+    ): UsernamePasswordAuthenticationToken {
         val claims = getAllClaims(token)
         val authorities = claims["roles"] as List<*>
         val grantedAuthorities = authorities.map { role -> SimpleGrantedAuthority(role as String) }.toList()

@@ -23,7 +23,7 @@ class UserService(
     private val userRepository: UserRepository,
     private val passwordEncoder: PasswordEncoder,
 ) : UserDetailsService {
-    fun getAllUsers(page: Int, size: Int): Page<aichat.core.dto.UserDto> {
+    fun getAllUsers(page: Int, size: Int): Page<UserDto> {
         val sort = Sort.by(Sort.Direction.ASC, "id")
         val pageable: Pageable = PageRequest.of(page, size, sort)
         val result = userRepository.getAllWithPagination(pageable).map {
