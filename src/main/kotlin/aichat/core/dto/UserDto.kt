@@ -15,5 +15,5 @@ data class UserDto(
     val email: String,
 
     @field:PastOrPresent
-    val registrationDate: String
+    val createdAt: String
 )

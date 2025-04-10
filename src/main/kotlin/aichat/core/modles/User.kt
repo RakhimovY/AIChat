@@ -11,16 +11,17 @@ data class User(
     @Column(name = "id")
     var id: Long = 0,
 
-    @Column(name = "email")
+    @Column(nullable = false, unique = true)
     var email: String,
 
-    @Column(name = "password")
-    var password: String,
+    @Column(name = "password_hash", nullable = false)
+    var passwordHash: String,
 
-    @Column(name = "registrationDate")
-    var registrationDate: String? = LocalDate.now().toString(),
+    @Column(name = "created_at")
+    var createdAt: String = LocalDate.now().toString(),
 
-    ) {
-    constructor() : this(0, "", "", "") {
-    }
+    @OneToMany(mappedBy = "client", cascade = [CascadeType.ALL], orphanRemoval = true)
+    val chats: MutableList<Chat> = mutableListOf()
+) {
+    constructor() : this(0, "", "", "")
 }

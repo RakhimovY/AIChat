@@ -29,5 +29,8 @@ class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(ex.message)
     }
 
-
+    @ExceptionHandler(UserNotFounded::class)
+    fun handleUserNotFounded(ex: UserNotFounded): ResponseEntity<String> {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(ex.message)
+    }
 }

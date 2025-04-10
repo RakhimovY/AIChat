@@ -3,9 +3,9 @@ package aichat.core.services
 import aichat.core.dto.LoginRequest
 import aichat.core.dto.LoginResponse
 import aichat.core.dto.RegistrationRequest
-import aichat.core.dto.UserDto
 import aichat.core.exception.UserAlreadyExistException
 import aichat.core.exception.UserNotFounded
+import aichat.core.modles.User
 import aichat.core.repository.UserRepository
 import aichat.core.utils.JwtTokenUtils
 import org.springframework.http.ResponseEntity
@@ -21,7 +21,7 @@ class AuthService(
     private val authenticationManager: AuthenticationManager,
     private val jwtTokenUtils: JwtTokenUtils,
 ) {
-    fun registerNewUser(requestDto: RegistrationRequest?): ResponseEntity<UserDto> {
+    fun registerNewUser(requestDto: RegistrationRequest?): ResponseEntity<User> {
         if (requestDto == null) {
             throw IllegalArgumentException("Request body is null")
         }
@@ -33,9 +33,7 @@ class AuthService(
         val user = userService.creatNewUser(requestDto)
 
         return ResponseEntity.ok(
-            UserDto(
-                id = user.id, email = user.email, registrationDate = user.registrationDate!!
-            )
+            user
         )
     }
 
@@ -47,7 +45,7 @@ class AuthService(
                 )
             )
         } catch (_: BadCredentialsException) {
-            throw RuntimeException(UserNotFounded())
+            throw UserNotFounded()
         }
         val userDetails = userService.loadUserByUsername(loginRequest.email)
         val token = jwtTokenUtils.generateToken(userDetails)

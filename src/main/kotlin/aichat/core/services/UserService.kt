@@ -6,15 +6,11 @@ import aichat.core.exception.UserNotFounded
 import aichat.core.modles.User
 import aichat.core.repository.UserRepository
 import jakarta.transaction.Transactional
-import org.springframework.data.domain.Page
-import org.springframework.data.domain.PageRequest
-import org.springframework.data.domain.Sort
+import org.springframework.http.ResponseEntity
+import org.springframework.security.core.userdetails.UserDetails
 import org.springframework.security.core.userdetails.UserDetailsService
 import org.springframework.security.crypto.password.PasswordEncoder
 import org.springframework.stereotype.Service
-import org.springframework.data.domain.Pageable
-import org.springframework.http.ResponseEntity
-import org.springframework.security.core.userdetails.UserDetails
 
 typealias ApplicationUserDetails = org.springframework.security.core.userdetails.User
 
@@ -23,18 +19,18 @@ class UserService(
     private val userRepository: UserRepository,
     private val passwordEncoder: PasswordEncoder,
 ) : UserDetailsService {
-    fun getAllUsers(page: Int, size: Int): Page<UserDto> {
-        val sort = Sort.by(Sort.Direction.ASC, "id")
-        val pageable: Pageable = PageRequest.of(page, size, sort)
-        val result = userRepository.getAllWithPagination(pageable).map {
-            UserDto(
-                it.id,
-                it.email,
-                it.registrationDate.toString()
-            )
-        }
-        return result
-    }
+//    fun getAllUsers(page: Int, size: Int): Page<UserDto> {
+//        val sort = Sort.by(Sort.Direction.ASC, "id")
+//        val pageable: Pageable = PageRequest.of(page, size, sort)
+//        val result = userRepository.getAllWithPagination(pageable).map {
+//            UserDto(
+//                it.id,
+//                it.email,
+//                it.createdAt
+//            )
+//        }
+//        return result
+//    }
 
     fun getUserByEmail(email: String): ResponseEntity<User> {
         val findUser = userRepository.getUserByEmail(email)
@@ -51,7 +47,7 @@ class UserService(
             UserDto(
                 it.id,
                 it.email,
-                it.registrationDate!!
+                it.createdAt
             )
         })
     }
@@ -78,7 +74,7 @@ class UserService(
             UserDto(
                 findUser.get().id,
                 findUser.get().email,
-                findUser.get().registrationDate!!
+                findUser.get().createdAt
             )
         )
     }
@@ -87,7 +83,7 @@ class UserService(
     fun updateUserById(
         userId: Long,
         userRequest: User
-    ): ResponseEntity<UserDto> {
+    ): ResponseEntity<User> {
         val existingUser =
             userRepository.getUserById(userId).orElseThrow { UserNotFounded() }
 
@@ -99,27 +95,19 @@ class UserService(
         }
 
         existingUser.email = userRequest.email
-        existingUser.registrationDate = userRequest.registrationDate
+        existingUser.createdAt = userRequest.createdAt
         userRepository.save(existingUser)
 
         return ResponseEntity.ok(
-            UserDto(
-                existingUser.id,
-                existingUser.email,
-                existingUser.registrationDate!!
-            )
+            existingUser
         )
     }
 
-    fun deleteUserById(userId: Long): ResponseEntity<UserDto> {
+    fun deleteUserById(userId: Long): ResponseEntity<User> {
         val user = userRepository.getUserById(userId).orElseThrow { UserNotFounded() }
         userRepository.deleteById(userId)
         return ResponseEntity.ok(
-            UserDto(
-                user.id,
-                user.email,
-                user.registrationDate!!
-            )
+            user
         )
     }
 
@@ -131,7 +119,7 @@ class UserService(
     private fun User.mapToUserDetails(): UserDetails {
         return ApplicationUserDetails.builder()
             .username(this.email)
-            .password(this.password)
+            .password(this.passwordHash)
             .roles("USER")
             .build()
     }

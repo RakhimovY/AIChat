@@ -3,7 +3,7 @@ package aichat.web
 import aichat.core.dto.LoginRequest
 import aichat.core.dto.LoginResponse
 import aichat.core.dto.RegistrationRequest
-import aichat.core.dto.UserDto
+import aichat.core.modles.User
 import aichat.core.services.AuthService
 import org.springframework.http.ResponseEntity
 import org.springframework.validation.annotation.Validated
@@ -22,7 +22,7 @@ class AuthController(
 
     fun registerNewUser(
         @RequestBody @Validated registrationRequest: RegistrationRequest?
-    ): ResponseEntity<UserDto> {
+    ): ResponseEntity<User> {
         return authService.registerNewUser(registrationRequest)
     }
 

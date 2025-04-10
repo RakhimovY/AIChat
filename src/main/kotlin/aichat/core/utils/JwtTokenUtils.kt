@@ -23,7 +23,6 @@ class JwtTokenUtils(
 
     fun generateToken(userDetails: UserDetails): String {
         val claims = Jwts.claims()
-        claims["roles"] = userDetails.authorities.map { it.authority }
         val now = Date()
         val accessTokenExpirationDate = Date(now.time + accessTokenExpiration.toLong())
         return Jwts.builder()
