@@ -8,7 +8,8 @@ import java.util.*
 data class Chat(
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    var id: Long = 0,
+    @Column(name = "chatId")
+    var chatId: Long = 0,
 
     @Column
     val title: String? = null,

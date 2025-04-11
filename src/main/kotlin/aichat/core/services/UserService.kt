@@ -19,25 +19,8 @@ class UserService(
     private val userRepository: UserRepository,
     private val passwordEncoder: PasswordEncoder,
 ) : UserDetailsService {
-//    fun getAllUsers(page: Int, size: Int): Page<UserDto> {
-//        val sort = Sort.by(Sort.Direction.ASC, "id")
-//        val pageable: Pageable = PageRequest.of(page, size, sort)
-//        val result = userRepository.getAllWithPagination(pageable).map {
-//            UserDto(
-//                it.id,
-//                it.email,
-//                it.createdAt
-//            )
-//        }
-//        return result
-//    }
-
-    fun getUserByEmail(email: String): ResponseEntity<User> {
-        val findUser = userRepository.getUserByEmail(email)
-        if (findUser.isEmpty) {
-            throw UserNotFounded()
-        }
-        return ResponseEntity.ok(findUser.get())
+    fun getUserByEmail(email: String): User {
+        return userRepository.getUserByEmail(email).orElseThrow { UserNotFounded() }
     }
 
     fun findUserByParams(email: String): ResponseEntity<List<UserDto>> {

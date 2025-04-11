@@ -22,6 +22,6 @@ data class Message(
     val createdAt: String = LocalDate.now().toString(),
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "chat_id", nullable = false)
-    val chat: Chat
+    @JoinColumn(name = "chat", nullable = false)
+    val chats: Chat
 )

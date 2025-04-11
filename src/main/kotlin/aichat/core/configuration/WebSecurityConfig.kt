@@ -1,5 +1,7 @@
 package aichat.core.configuration
 
+import aichat.core.filter.JwtFilter
+import aichat.core.services.UserService
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.http.HttpStatus
@@ -13,8 +15,6 @@ import org.springframework.security.crypto.password.PasswordEncoder
 import org.springframework.security.web.SecurityFilterChain
 import org.springframework.security.web.authentication.HttpStatusEntryPoint
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter
-import aichat.core.filter.JwtFilter
-import aichat.core.services.UserService
 
 
 @EnableWebSecurity
@@ -31,7 +31,6 @@ class WebSecurityConfig(
             .cors { it.disable() }
             .authorizeHttpRequests {
                 it.requestMatchers("/api/auth/**").permitAll()
-                it.requestMatchers("/api/chat/**").permitAll()
                 it.anyRequest().authenticated()
             }
             .sessionManagement { it.sessionCreationPolicy(SessionCreationPolicy.STATELESS) }
