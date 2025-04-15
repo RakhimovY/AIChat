@@ -1,47 +1,67 @@
 package aichat.core.services
 
+import aichat.core.dto.ChatRespDTO
 import aichat.core.dto.MessageDTO
 import aichat.core.enums.ChatMessageRole
+import aichat.core.modles.Chat
 import aichat.core.modles.Message
 import aichat.core.repository.MessageRepository
+import org.springframework.ai.chat.client.ChatClient
+import org.springframework.beans.factory.annotation.Value
 import org.springframework.stereotype.Service
+
 
 @Service
 class MessageService(
     private val messageRepository: MessageRepository,
     private val chatService: ChatService,
-    private val userService: UserService
+    private val userService: UserService,
+    @Value("classpath:/prompts/law-ai.st") private val prompt: String,
+    chatClientBuilder: ChatClient.Builder
 ) {
+    private val chatClient = chatClientBuilder.build()
 
     fun createMessage(
         messageDTO: MessageDTO,
         userEmail: String,
-        role: ChatMessageRole = ChatMessageRole.user
-    ): Message {
-        if (messageDTO.chatId != null) {
-            val chat = chatService.getChatById(messageDTO.chatId)
-            val message = Message(
-                chat = chat,
-                content = messageDTO.content,
-                role = role
-            )
-            chat.messages.add(message)
-            return messageRepository.save(message)
-        } else {
-            val user = userService.getUserByEmail(userEmail)
+    ): List<ChatRespDTO> {
+        val chat = messageDTO.chatId?.let { chatService.getChatById(it) }
+            ?: chatService.createChat(userService.getUserByEmail(userEmail))
 
-            val chat = chatService.createChat(user)
-            val message = Message(
-                chat = chat,
-                content = messageDTO.content,
-                role = role
+        val message = Message(
+            chat = chat,
+            content = messageDTO.content,
+            role = ChatMessageRole.user
+        )
+        chat.messages.add(message)
+        messageRepository.save(message)
+        askAI(messageDTO.content, chat)
+
+
+        return chat.messages.map {
+            ChatRespDTO(
+                id = it.id,
+                role = it.role,
+                content = it.content,
+                createdAt = it.createdAt,
+                chatId = it.chat.id
             )
-            chat.messages.add(message)
-            return messageRepository.save(message)
         }
     }
 
-    fun getMessagesByChatId(chatId: Long): List<Message> {
-        return messageRepository.findAllByChatId(chatId)
+    fun askAI(userMessage: String, chat: Chat) {
+        val aiResponse = chatClient.prompt()
+            .system(prompt)
+            .user(userMessage)
+            .call()
+            .content()
+
+        val message = Message(
+            chat = chat,
+            content = aiResponse ?: "",
+            role = ChatMessageRole.assistant
+        )
+        chat.messages.add(message)
+        messageRepository.save(message)
     }
 }
