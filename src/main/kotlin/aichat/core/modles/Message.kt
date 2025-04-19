@@ -2,7 +2,7 @@ package aichat.core.modles
 
 import aichat.core.enums.ChatMessageRole
 import jakarta.persistence.*
-import java.time.LocalDate
+import java.time.LocalDateTime
 
 @Entity
 @Table(name = "messages")
@@ -19,9 +19,17 @@ data class Message(
     val content: String,
 
     @Column(name = "created_at")
-    val createdAt: String = LocalDate.now().toString(),
+    val createdAt: LocalDateTime = LocalDateTime.now(),
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "chat_id", nullable = false)
     val chat: Chat
-)
+) {
+    constructor() : this(
+        id = 0,
+        role = ChatMessageRole.user,
+        content = "",
+        createdAt = LocalDateTime.now(),
+        chat = Chat()
+    )
+}

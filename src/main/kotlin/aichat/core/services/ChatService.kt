@@ -1,5 +1,6 @@
 package aichat.core.services
 
+import aichat.core.exception.ChatNotFounded
 import aichat.core.modles.Chat
 import aichat.core.modles.User
 import aichat.core.repository.ChatRepository
@@ -10,10 +11,9 @@ class ChatService(
     private val chatRepository: ChatRepository
 ) {
 
-    fun createChat(title: String?, user: User): Chat {
+    fun createChat(user: User, title: String? = "Test Title"): Chat {
         val chat = Chat(
-            title = title,
-            client = user
+            title = title, client = user
         )
         return chatRepository.save(chat)
     }
@@ -22,7 +22,7 @@ class ChatService(
         return chatRepository.findAllByClientId(userId)
     }
 
-    fun getChatById(id: Long): Chat? {
-        return chatRepository.findById(id).orElse(null)
+    fun getChatById(id: Long): Chat {
+        return chatRepository.findById(id).orElseThrow { ChatNotFounded() }
     }
 }
