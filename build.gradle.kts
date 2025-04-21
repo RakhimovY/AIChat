@@ -1,7 +1,7 @@
 plugins {
     kotlin("jvm") version "1.9.25"
     kotlin("plugin.spring") version "1.9.25"
-    id("org.springframework.boot") version "3.2.4"
+    id("org.springframework.boot") version "3.4.4"
     id("io.spring.dependency-management") version "1.1.7"
 }
 
@@ -31,6 +31,7 @@ repositories {
 dependencyManagement {
     imports {
         mavenBom("org.springframework.ai:spring-ai-bom:$springAiVersion")
+        mavenBom("com.fasterxml.jackson:jackson-bom:2.17.0")
     }
 }
 
@@ -39,7 +40,6 @@ dependencies {
     implementation(platform("org.springframework.ai:spring-ai-bom:$springAiVersion"))
     implementation("org.springframework.ai:spring-ai-openai-spring-boot-starter:$springAiVersion")
     implementation("org.springframework.ai:spring-ai-starter-model-chat-memory-jdbc:$springAiVersion")
-    implementation("org.springframework.ai:spring-ai-openai")
 
     // Spring Boot
     implementation("org.springframework.boot:spring-boot-starter-web")
@@ -50,7 +50,7 @@ dependencies {
 
     // Kotlin
     implementation("org.jetbrains.kotlin:kotlin-reflect")
-    implementation("com.fasterxml.jackson.module:jackson-module-kotlin")
+    implementation("com.fasterxml.jackson.module:jackson-module-kotlin:2.17.0")
 
     // JWT
     implementation("io.jsonwebtoken:jjwt-api:0.11.5")
