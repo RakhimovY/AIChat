@@ -8,7 +8,7 @@ import aichat.core.modles.Message
 import aichat.core.repository.MessageRepository
 import org.springframework.ai.chat.client.ChatClient
 import org.springframework.ai.chat.client.advisor.MessageChatMemoryAdvisor
-import org.springframework.ai.chat.memory.jdbc.JdbcChatMemory
+import org.springframework.ai.chat.memory.ChatMemory
 import org.springframework.ai.chat.messages.AssistantMessage
 import org.springframework.ai.chat.messages.UserMessage
 import org.springframework.beans.factory.annotation.Value
@@ -20,7 +20,7 @@ class MessageService(
     private val messageRepository: MessageRepository,
     private val chatService: ChatService,
     private val userService: UserService,
-    private val chatMemory: JdbcChatMemory,
+    private val chatMemory: ChatMemory,
     @Value("classpath:/prompts/law-ai.st") private val prompt: String,
     chatClientBuilder: ChatClient.Builder
 ) {
