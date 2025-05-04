@@ -22,7 +22,8 @@ class MessageService(
     private val userService: UserService,
     private val chatMemory: ChatMemory,
     @Value("classpath:/prompts/law-ai.st") private val prompt: String,
-    chatClientBuilder: ChatClient.Builder
+    chatClientBuilder: ChatClient.Builder,
+    private val constitutionService: ConstitutionService
 ) {
     private val chatClient = chatClientBuilder
         .defaultAdvisors(MessageChatMemoryAdvisor(chatMemory))
@@ -60,6 +61,9 @@ class MessageService(
         val memoryId = chat.id.toString()
 
         chatMemory.add(memoryId, listOf(UserMessage(userMessage)))
+
+        val constitution = constitutionService.getConstitution("kz") ?: "Конституция не найдена."
+
 
         val aiContent = chatClient
             .prompt()
