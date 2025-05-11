@@ -1,0 +1,36 @@
+# root = true
+#
+# [*]
+# charset = utf-8
+# end_of_line = lf
+# indent_size = 4
+# indent_style = space
+# max_line_length = 120
+# trim_trailing_whitespace = true
+#
+# [*.{kt,kts}]
+# ktlint_code_style = intellij
+# ij_kotlin_allow_trailing_comma = true
+# ij_kotlin_allow_trailing_comma_on_call_site = true
+# ij_kotlin_name_count_to_use_star_import = 5
+# ij_kotlin_name_count_to_use_star_import_for_members = 3
+# ij_kotlin_packages_to_use_import_on_demand = java.util.*,kotlinx.android.synthetic.**
+# ij_kotlin_imports_layout = *
+#
+# # Отступы и пробелы
+# ij_continuation_indent_size = 4
+# ij_kotlin_continuation_indent_size = 4
+# ij_kotlin_indent_size = 4
+# ij_kotlin_keep_indents_on_empty_lines = false
+# ij_kotlin_space_after_comma = true
+# ij_kotlin_space_before_comma = false
+# ij_kotlin_align_multiline_parameters = false
+#
+# [*.{yml,yaml,json,xml}]
+# indent_size = 2
+#
+# [*.{xml,html}]
+# indent_size = 2
+#
+# [*.md]
+# trim_trailing_whitespace = false

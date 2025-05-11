@@ -23,6 +23,7 @@ repositories {
 
 dependencies {
     implementation("org.springframework.ai:spring-ai-starter-model-openai:$springAiVersion")
+    implementation("org.springframework.ai:spring-ai-starter-model-chat-memory-jdbc:$springAiVersion")
 
     // Spring Boot
     implementation("org.springframework.boot:spring-boot-starter-web")
@@ -43,6 +44,8 @@ dependencies {
 
     // Database
     runtimeOnly("org.postgresql:postgresql")
+
+    implementation("me.paulschwarz:spring-dotenv:4.0.0")
 
     // Dev & Test
     developmentOnly("org.springframework.boot:spring-boot-devtools")
