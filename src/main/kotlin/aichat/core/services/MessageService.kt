@@ -3,6 +3,7 @@ package aichat.core.services
 import aichat.core.dto.ChatRespDTO
 import aichat.core.dto.MessageDTO
 import aichat.core.enums.ChatMessageRole
+import aichat.core.exception.ChatNotFounded
 import aichat.core.modles.Chat
 import aichat.core.modles.Message
 import aichat.core.repository.MessageRepository
@@ -88,5 +89,18 @@ class MessageService(
             )
         chat.messages.add(message)
         messageRepository.save(message)
+    }
+
+    fun getChatMessages(chatId: Long): List<ChatRespDTO> {
+        val messages = messageRepository.findByChatId(chatId)
+        return messages.map {
+            ChatRespDTO(
+                id = it.id,
+                role = it.role,
+                content = it.content,
+                createdAt = it.createdAt,
+                chatId = it.chat.id
+            )
+        }
     }
 }
