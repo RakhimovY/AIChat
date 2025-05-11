@@ -9,3 +9,4 @@ interface UserRepository : JpaRepository<User, Long> {
 
     fun getUserById(userId: Long): Optional<User>
 }
+

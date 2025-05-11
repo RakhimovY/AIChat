@@ -14,31 +14,15 @@ java {
     }
 }
 
-val springAiVersion = "1.0.0-SNAPSHOT"
+val springAiVersion = "1.0.0-M8"
+val jacksonVersion = "2.17.0"
 
 repositories {
-    repositories {
-        mavenCentral()
-        maven { url = uri("https://repo.spring.io/milestone") }
-        maven { url = uri("https://repo.spring.io/snapshot") }
-        maven {
-            name = "Central Portal Snapshots"
-            url = uri("https://central.sonatype.com/repository/maven-snapshots/")
-        }
-    }
-}
-
-dependencyManagement {
-    imports {
-        mavenBom("org.springframework.ai:spring-ai-bom:$springAiVersion")
-        mavenBom("com.fasterxml.jackson:jackson-bom:2.17.0")
-    }
+    mavenCentral()
 }
 
 dependencies {
-    // Spring AI
-    implementation(platform("org.springframework.ai:spring-ai-bom:$springAiVersion"))
-    implementation("org.springframework.ai:spring-ai-openai-spring-boot-starter:$springAiVersion")
+    implementation("org.springframework.ai:spring-ai-starter-model-openai:$springAiVersion")
     implementation("org.springframework.ai:spring-ai-starter-model-chat-memory-jdbc:$springAiVersion")
 
     // Spring Boot
@@ -50,7 +34,8 @@ dependencies {
 
     // Kotlin
     implementation("org.jetbrains.kotlin:kotlin-reflect")
-    implementation("com.fasterxml.jackson.module:jackson-module-kotlin:2.17.0")
+    implementation("com.fasterxml.jackson.module:jackson-module-kotlin:$jacksonVersion")
+    implementation ("com.fasterxml.jackson.core:jackson-annotations:${jacksonVersion}")
 
     // JWT
     implementation("io.jsonwebtoken:jjwt-api:0.11.5")
@@ -59,6 +44,8 @@ dependencies {
 
     // Database
     runtimeOnly("org.postgresql:postgresql")
+
+    implementation("me.paulschwarz:spring-dotenv:4.0.0")
 
     // Dev & Test
     developmentOnly("org.springframework.boot:spring-boot-devtools")

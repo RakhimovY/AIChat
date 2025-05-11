@@ -1,7 +1,7 @@
 package aichat.core.modles
 
-import com.fasterxml.jackson.annotation.JsonBackReference
 import jakarta.persistence.*
+import com.fasterxml.jackson.annotation.JsonBackReference
 import java.time.LocalDateTime
 
 @Entity
