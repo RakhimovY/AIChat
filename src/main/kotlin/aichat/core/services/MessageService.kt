@@ -3,9 +3,8 @@ package aichat.core.services
 import aichat.core.dto.ChatRespDTO
 import aichat.core.dto.MessageDTO
 import aichat.core.enums.ChatMessageRole
-import aichat.core.exception.ChatNotFounded
-import aichat.core.modles.Chat
-import aichat.core.modles.Message
+import aichat.core.models.Chat
+import aichat.core.models.Message
 import aichat.core.repository.MessageRepository
 import org.springframework.ai.chat.client.ChatClient
 import org.springframework.ai.chat.client.advisor.MessageChatMemoryAdvisor
@@ -23,6 +22,7 @@ class MessageService(
     private val chatService: ChatService,
     private val userService: UserService,
     private val jdbcTemplate: JdbcTemplate,
+    private val chatRepository: aichat.core.repository.ChatRepository,
     chatClientBuilder: ChatClient.Builder,
 ) {
     private val chatMemoryRepository: ChatMemoryRepository =
@@ -58,6 +58,19 @@ class MessageService(
             )
         chat.messages.add(message)
         messageRepository.save(message)
+
+        // Update chat title based on first message if it's a new chat with default title
+        if (chat.messages.size == 1 && chat.title == "Новый чат") {
+            // Generate title from user message (truncate if too long)
+            val titleFromMessage = if (messageDTO.content.length > 50) {
+                messageDTO.content.substring(0, 47) + "..."
+            } else {
+                messageDTO.content
+            }
+            chat.title = titleFromMessage
+            chatRepository.save(chat)
+        }
+
         askAI(messageDTO.content, chat)
 
         return chat.messages.map {

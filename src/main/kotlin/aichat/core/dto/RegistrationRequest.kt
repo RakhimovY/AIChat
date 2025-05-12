@@ -16,4 +16,6 @@ data class RegistrationRequest(
     ) val password: String,
 
     @field:NotBlank @field:Email val email: String,
+
+    val name: String? = null
 )

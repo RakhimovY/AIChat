@@ -1,4 +1,4 @@
-package aichat.core.modles
+package aichat.core.models
 
 import aichat.core.enums.ChatMessageRole
 import jakarta.persistence.*

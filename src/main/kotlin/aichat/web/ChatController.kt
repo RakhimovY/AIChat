@@ -3,7 +3,6 @@ package aichat.web
 import aichat.core.dto.ChatDTO
 import aichat.core.dto.ChatRespDTO
 import aichat.core.dto.MessageDTO
-import aichat.core.modles.Chat
 import aichat.core.services.ChatService
 import aichat.core.services.MessageService
 import org.springframework.http.ResponseEntity

@@ -2,8 +2,8 @@ package aichat.core.services
 
 import aichat.core.dto.ChatDTO
 import aichat.core.exception.ChatNotFounded
-import aichat.core.modles.Chat
-import aichat.core.modles.User
+import aichat.core.models.Chat
+import aichat.core.models.User
 import aichat.core.repository.ChatRepository
 import org.springframework.stereotype.Service
 
@@ -13,7 +13,7 @@ class ChatService(
     private val userService: UserService
 ) {
 
-    fun createChat(user: User, title: String? = "Test Title"): Chat {
+    fun createChat(user: User, title: String? = "Новый чат"): Chat {
         val chat = Chat(
             title = title, client = user
         )

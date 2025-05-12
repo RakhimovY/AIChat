@@ -1,9 +1,10 @@
 package aichat.core.services
 
+import aichat.core.dto.GoogleAuthRequest
 import aichat.core.dto.UserDto
 import aichat.core.exception.UserAlreadyExistException
 import aichat.core.exception.UserNotFounded
-import aichat.core.modles.User
+import aichat.core.models.User
 import aichat.core.repository.UserRepository
 import jakarta.transaction.Transactional
 import org.springframework.http.ResponseEntity
@@ -30,6 +31,7 @@ class UserService(
             UserDto(
                 it.id,
                 it.email,
+                it.name,
                 it.createdAt
             )
         })
@@ -43,6 +45,7 @@ class UserService(
             User(
                 0,
                 requestDto.email,
+                requestDto.name,
                 passwordEncoder.encode(requestDto.password),
             )
         )
@@ -57,6 +60,7 @@ class UserService(
             UserDto(
                 findUser.get().id,
                 findUser.get().email,
+                findUser.get().name,
                 findUser.get().createdAt
             )
         )
@@ -102,8 +106,45 @@ class UserService(
     private fun User.mapToUserDetails(): UserDetails {
         return ApplicationUserDetails.builder()
             .username(this.email)
-            .password(this.passwordHash)
+            .password(this.passwordHash ?: "")
             .roles("USER")
             .build()
+    }
+
+    /**
+     * Find or create a user by Google ID
+     * @param googleAuthRequest The Google authentication request
+     * @return The user
+     */
+    fun findOrCreateGoogleUser(googleAuthRequest: GoogleAuthRequest): User {
+        // Check if user with Google ID exists
+        val userByGoogleId = userRepository.findByGoogleId(googleAuthRequest.googleId)
+        if (userByGoogleId.isPresent) {
+            return userByGoogleId.get()
+        }
+
+        // Check if user with email exists
+        val userByEmail = userRepository.getUserByEmail(googleAuthRequest.email)
+        if (userByEmail.isPresent) {
+            // Update existing user with Google information
+            val existingUser = userByEmail.get()
+            existingUser.googleId = googleAuthRequest.googleId
+            existingUser.picture = googleAuthRequest.picture
+            existingUser.provider = "google"
+            if (existingUser.name.isNullOrBlank() && !googleAuthRequest.name.isNullOrBlank()) {
+                existingUser.name = googleAuthRequest.name
+            }
+            return userRepository.save(existingUser)
+        }
+
+        // Create new user with Google information
+        val newUser = User(
+            email = googleAuthRequest.email,
+            name = googleAuthRequest.name,
+            googleId = googleAuthRequest.googleId,
+            picture = googleAuthRequest.picture,
+            provider = "google"
+        )
+        return userRepository.save(newUser)
     }
 }

@@ -1,4 +1,4 @@
-package aichat.core.modles
+package aichat.core.models
 
 import jakarta.persistence.*
 import com.fasterxml.jackson.annotation.JsonBackReference
@@ -12,7 +12,7 @@ data class Chat(
     var id: Long = 0,
 
     @Column
-    val title: String? = null,
+    var title: String? = null,
 
     @Column(name = "created_at")
     val createdAt: LocalDateTime = LocalDateTime.now(),

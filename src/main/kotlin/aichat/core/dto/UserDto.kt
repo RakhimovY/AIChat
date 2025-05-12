@@ -15,6 +15,8 @@ data class UserDto(
     @field:Email
     val email: String,
 
+    val name: String? = null,
+
     @field:PastOrPresent
     val createdAt: LocalDateTime
 )
