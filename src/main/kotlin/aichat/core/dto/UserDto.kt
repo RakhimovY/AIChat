@@ -17,6 +17,8 @@ data class UserDto(
 
     val name: String? = null,
 
+    val country: String? = null,
+
     @field:PastOrPresent
     val createdAt: LocalDateTime
 )

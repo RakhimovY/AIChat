@@ -29,6 +29,9 @@ data class User(
     @Column(name = "provider", nullable = true)
     var provider: String? = "credentials",
 
+    @Column(name = "country", nullable = true)
+    var country: String? = null,
+
     @Column(name = "created_at")
     var createdAt: LocalDateTime = LocalDateTime.now(),
 
@@ -43,6 +46,7 @@ data class User(
         googleId = null,
         picture = null,
         provider = "credentials",
+        country = null,
         createdAt = LocalDateTime.now(),
         chats = mutableListOf()
     )

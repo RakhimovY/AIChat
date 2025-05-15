@@ -28,10 +28,13 @@ class MessageService(
     private val chatMemoryRepository: ChatMemoryRepository =
         JdbcChatMemoryRepository.builder().jdbcTemplate(jdbcTemplate).build()
 
+    // Configure chat memory with a window of messages to provide context for the AI
+    // Increasing maxMessages provides more context but may slow down responses
+    // and increase token usage. 15 is a good balance between context and performance.
     private val chatMemory =
         MessageWindowChatMemory.builder()
             .chatMemoryRepository(chatMemoryRepository)
-            .maxMessages(10)
+            .maxMessages(15)
             .build()
 
     val systemPrompt =
@@ -104,44 +107,100 @@ class MessageService(
         }
     }
 
+    // Function to map ISO country codes to full country names
+    private fun getCountryNameByCode(code: String): String {
+        return when (code) {
+            "RU" -> "Россия"
+            "KZ" -> "Казахстан"
+            "BY" -> "Беларусь"
+            "UA" -> "Украина"
+            "UZ" -> "Узбекистан"
+            "KG" -> "Кыргызстан"
+            "TJ" -> "Таджикистан"
+            "TM" -> "Туркменистан"
+            "AZ" -> "Азербайджан"
+            "AM" -> "Армения"
+            "GE" -> "Грузия"
+            "MD" -> "Молдова"
+            "US" -> "США"
+            "GB" -> "Великобритания"
+            "DE" -> "Германия"
+            "FR" -> "Франция"
+            "IT" -> "Италия"
+            "ES" -> "Испания"
+            "CN" -> "Китай"
+            "JP" -> "Япония"
+            "IN" -> "Индия"
+            "BR" -> "Бразилия"
+            "CA" -> "Канада"
+            "AU" -> "Австралия"
+            else -> code // Return the code itself if not found in the mapping
+        }
+    }
+
     fun askAI(userMessage: String, chat: Chat, country: String? = null) {
         val memoryId = chat.id.toString()
+        val logger = org.slf4j.LoggerFactory.getLogger(MessageService::class.java)
 
-        chatMemory.add(memoryId, listOf(UserMessage(userMessage)))
+        try {
+            chatMemory.add(memoryId, listOf(UserMessage(userMessage)))
 
-        // Create final prompt with country-specific instructions if country is provided
-        val finalPrompt = if (country != null) {
-            """
-            $systemPrompt
+            // Create final prompt with country-specific instructions if country is provided
+            val finalPrompt = if (country != null) {
+                // Map country code to full name if it's a code
+                val countryName = getCountryNameByCode(country)
 
-            Пользователь находится в стране: $country.
-            Адаптируй свой ответ к правовой системе и законодательству этой страны.
-            Используй актуальные законы, нормативные акты и правовые документы этой страны.
-            Если цитируешь законы, конституцию или другие правовые документы, указывай их точные названия и номера статей.
+                """
+                $systemPrompt
 
-            Вот мой вопрос: $userMessage
-            """
-        } else {
-            """
-            $systemPrompt
+                Пользователь находится в стране: $countryName.
+                Адаптируй свой ответ к правовой системе и законодательству этой страны.
+                Используй актуальные законы, нормативные акты и правовые документы этой страны.
+                Если цитируешь законы, конституцию или другие правовые документы, указывай их точные названия и номера статей.
 
-            Вот мой вопрос: $userMessage
-            """
-        }
+                Вот мой вопрос: $userMessage
+                """
+            } else {
+                """
+                $systemPrompt
 
-        val aiContent =
-            chatClient.prompt(finalPrompt).call().content()
+                Вот мой вопрос: $userMessage
+                """
+            }
 
-        chatMemory.add(memoryId, listOf(AssistantMessage(aiContent ?: "")))
+            logger.info("Sending prompt to AI for chat ${chat.id}, country: ${country ?: "not specified"}")
+            val startTime = System.currentTimeMillis()
 
-        val message =
-            Message(
+            val aiContent = try {
+                chatClient.prompt(finalPrompt).call().content()
+            } catch (e: Exception) {
+                logger.error("Error calling AI service: ${e.message}", e)
+                "Извините, произошла ошибка при обработке вашего запроса. Пожалуйста, попробуйте еще раз позже."
+            }
+
+            val endTime = System.currentTimeMillis()
+            logger.info("AI response received in ${endTime - startTime}ms for chat ${chat.id}")
+
+            chatMemory.add(memoryId, listOf(AssistantMessage(aiContent ?: "")))
+
+            val message =
+                Message(
+                    chat = chat,
+                    content = aiContent ?: "",
+                    role = ChatMessageRole.assistant
+                )
+            chat.messages.add(message)
+            messageRepository.save(message)
+        } catch (e: Exception) {
+            logger.error("Unexpected error in askAI: ${e.message}", e)
+            val errorMessage = Message(
                 chat = chat,
-                content = aiContent ?: "",
+                content = "Произошла системная ошибка. Пожалуйста, попробуйте еще раз позже.",
                 role = ChatMessageRole.assistant
             )
-        chat.messages.add(message)
-        messageRepository.save(message)
+            chat.messages.add(errorMessage)
+            messageRepository.save(errorMessage)
+        }
     }
 
     fun getChatMessages(chatId: Long): List<ChatRespDTO> {

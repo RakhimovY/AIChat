@@ -37,6 +37,7 @@ class UserService(
                 it.id,
                 it.email,
                 it.name,
+                it.country,
                 it.createdAt
             )
         })
@@ -50,8 +51,9 @@ class UserService(
             User(
                 0,
                 requestDto.email,
-                requestDto.name,
-                passwordEncoder.encode(requestDto.password),
+                name = requestDto.name,
+                passwordHash = passwordEncoder.encode(requestDto.password),
+                country = requestDto.country
             )
         )
     }
@@ -66,6 +68,7 @@ class UserService(
                 findUser.get().id,
                 findUser.get().email,
                 findUser.get().name,
+                findUser.get().country,
                 findUser.get().createdAt
             )
         )
@@ -87,6 +90,8 @@ class UserService(
         }
 
         existingUser.email = userRequest.email
+        existingUser.name = userRequest.name
+        existingUser.country = userRequest.country
         existingUser.createdAt = userRequest.createdAt
         userRepository.save(existingUser)
 
