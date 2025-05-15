@@ -1,10 +1,13 @@
 package aichat.core.services
 
 import aichat.core.dto.GoogleAuthRequest
+import aichat.core.dto.PasswordResetResponse
 import aichat.core.dto.UserDto
 import aichat.core.exception.UserAlreadyExistException
 import aichat.core.exception.UserNotFounded
+import aichat.core.models.PasswordResetToken
 import aichat.core.models.User
+import aichat.core.repository.PasswordResetTokenRepository
 import aichat.core.repository.UserRepository
 import jakarta.transaction.Transactional
 import org.springframework.http.ResponseEntity
@@ -18,7 +21,9 @@ typealias ApplicationUserDetails = org.springframework.security.core.userdetails
 @Service
 class UserService(
     private val userRepository: UserRepository,
+    private val passwordResetTokenRepository: PasswordResetTokenRepository,
     private val passwordEncoder: PasswordEncoder,
+    private val emailService: EmailService,
 ) : UserDetailsService {
     fun getUserByEmail(email: String): User {
         return userRepository.getUserByEmail(email).orElseThrow { UserNotFounded() }
@@ -147,5 +152,138 @@ class UserService(
             provider = "google"
         )
         return userRepository.save(newUser)
+    }
+
+    /**
+     * Create a password reset token for a user
+     * @param email The email of the user
+     * @return A response entity with a success message or error
+     */
+    fun createPasswordResetTokenForUser(email: String): ResponseEntity<PasswordResetResponse> {
+        try {
+            val user = getUserByEmail(email)
+
+            // Check if the user is a Google user
+            if (user.provider == "google") {
+                return ResponseEntity.badRequest().body(
+                    PasswordResetResponse(
+                        message = "Пользователи, вошедшие через Google, не могут сбросить пароль. Пожалуйста, используйте вход через Google.",
+                        success = false
+                    )
+                )
+            }
+
+            // Delete any existing tokens for this user
+            passwordResetTokenRepository.findByUser(user).forEach { token ->
+                passwordResetTokenRepository.delete(token)
+            }
+
+            // Create a new token
+            val token = PasswordResetToken(user = user)
+            val savedToken = passwordResetTokenRepository.save(token)
+
+            // Send password reset email
+            val emailSent = emailService.sendPasswordResetEmail(email, savedToken.token)
+
+            return if (emailSent) {
+                ResponseEntity.ok(
+                    PasswordResetResponse(
+                        message = "Инструкции по сбросу пароля отправлены на ваш email.",
+                        success = true
+                    )
+                )
+            } else {
+                ResponseEntity.status(500).body(
+                    PasswordResetResponse(
+                        message = "Не удалось отправить email. Пожалуйста, попробуйте позже.",
+                        success = false
+                    )
+                )
+            }
+        } catch (e: UserNotFounded) {
+            // Don't reveal that the user doesn't exist for security reasons
+            return ResponseEntity.ok(
+                PasswordResetResponse(
+                    message = "Если указанный email зарегистрирован, инструкции по сбросу пароля будут отправлены.",
+                    success = true
+                )
+            )
+        } catch (e: Exception) {
+            println("Error creating password reset token: ${e.message}")
+            e.printStackTrace()
+            return ResponseEntity.badRequest().body(
+                PasswordResetResponse(
+                    message = "Произошла ошибка при обработке запроса: ${e.message}",
+                    success = false
+                )
+            )
+        }
+    }
+
+    /**
+     * Verify a password reset token and reset the password
+     * @param token The token to verify
+     * @param newPassword The new password to set
+     * @return A response entity with a success message or error
+     */
+    fun resetPasswordWithToken(token: String, newPassword: String): ResponseEntity<PasswordResetResponse> {
+        try {
+            val resetToken = passwordResetTokenRepository.findByToken(token)
+                .orElseThrow { IllegalArgumentException("Invalid token") }
+
+            // Check if the token is expired or used
+            if (resetToken.isExpired() || resetToken.used) {
+                return ResponseEntity.badRequest().body(
+                    PasswordResetResponse(
+                        message = "Токен недействителен или истек срок его действия.",
+                        success = false
+                    )
+                )
+            }
+
+            // Get the user
+            val user = resetToken.user
+
+            // Check if the user is a Google user
+            if (user.provider == "google") {
+                return ResponseEntity.badRequest().body(
+                    PasswordResetResponse(
+                        message = "Пользователи, вошедшие через Google, не могут сбросить пароль. Пожалуйста, используйте вход через Google.",
+                        success = false
+                    )
+                )
+            }
+
+            // Update the password
+            user.passwordHash = passwordEncoder.encode(newPassword)
+            userRepository.save(user)
+
+            // Mark the token as used
+            resetToken.used = true
+            passwordResetTokenRepository.save(resetToken)
+
+            return ResponseEntity.ok(
+                PasswordResetResponse(
+                    message = "Пароль успешно изменен.",
+                    success = true
+                )
+            )
+        } catch (e: IllegalArgumentException) {
+            return ResponseEntity.badRequest().body(
+                PasswordResetResponse(
+                    message = "Недействительный токен.",
+                    success = false
+                )
+            )
+        } catch (e: Exception) {
+            println("Error resetting password: ${e.message}")
+            e.printStackTrace()
+            return ResponseEntity.badRequest().body(
+                PasswordResetResponse(
+                    message = "Произошла ошибка при обработке запроса: ${e.message}",
+                    success = false
+                )
+            )
+        }
     }
 }
