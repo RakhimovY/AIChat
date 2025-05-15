@@ -106,7 +106,7 @@ class UserService(
     private fun User.mapToUserDetails(): UserDetails {
         return ApplicationUserDetails.builder()
             .username(this.email)
-            .password(this.passwordHash ?: "")
+            .password(this.passwordHash)
             .roles("USER")
             .build()
     }
@@ -141,6 +141,7 @@ class UserService(
         val newUser = User(
             email = googleAuthRequest.email,
             name = googleAuthRequest.name,
+            passwordHash = passwordEncoder.encode("google-auth-" + System.currentTimeMillis()), // Generate a random password for Google users
             googleId = googleAuthRequest.googleId,
             picture = googleAuthRequest.picture,
             provider = "google"

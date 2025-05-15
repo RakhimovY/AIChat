@@ -17,8 +17,8 @@ data class User(
     @Column(name = "name", nullable = true)
     var name: String? = null,
 
-    @Column(name = "password_hash", nullable = true)
-    var passwordHash: String? = null,
+    @Column(name = "password_hash", nullable = false)
+    var passwordHash: String = "",
 
     @Column(name = "google_id", nullable = true, unique = true)
     var googleId: String? = null,
@@ -39,7 +39,7 @@ data class User(
         id = 0,
         email = "",
         name = null,
-        passwordHash = null,
+        passwordHash = "",
         googleId = null,
         picture = null,
         provider = "credentials",
