@@ -5,8 +5,10 @@ import aichat.core.dto.ChatRespDTO
 import aichat.core.dto.MessageDTO
 import aichat.core.services.ChatService
 import aichat.core.services.MessageService
+import org.springframework.http.MediaType
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.*
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter
 import java.security.Principal
 
 
@@ -35,5 +37,15 @@ class ChatController(
     fun deleteChat(@PathVariable chatId: Long): ResponseEntity<Void> {
         chatService.deleteChat(chatId)
         return ResponseEntity.ok().build()
+    }
+
+    /**
+     * Stream AI responses using Server-Sent Events (SSE)
+     * This endpoint allows for real-time streaming of AI responses to improve user experience
+     * and avoid timeouts with long responses
+     */
+    @PostMapping("/ask/stream", produces = [MediaType.TEXT_EVENT_STREAM_VALUE])
+    fun streamChat(@RequestBody messageDTO: MessageDTO, principal: Principal): SseEmitter {
+        return messageService.createMessageStream(messageDTO, principal.name)
     }
 }

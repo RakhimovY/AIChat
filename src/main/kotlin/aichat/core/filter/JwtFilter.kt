@@ -33,12 +33,20 @@ class JwtFilter(
                 username = jwtTokenUtil.getUsername(jwtToken)
             } catch (_: ExpiredJwtException) {
                 logger.debug("JWT token is expired")
-                response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "JWT token is expired")
-                return
+                if (!response.isCommitted) {
+                    response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "JWT token is expired")
+                    return
+                }
+                // If response is already committed, just log and continue
+                logger.warn("Response already committed, cannot send error for expired token")
             } catch (_: SignatureException) {
                 logger.debug("JWT token is invalid")
-                response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "JWT token is invalid")
-                return
+                if (!response.isCommitted) {
+                    response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "JWT token is invalid")
+                    return
+                }
+                // If response is already committed, just log and continue
+                logger.warn("Response already committed, cannot send error for invalid token")
             }
         }
 
@@ -54,7 +62,11 @@ class JwtFilter(
                 // Check if token needs to be refreshed
                 if (jwtTokenUtil.isExpired(jwtToken)) {
                     val newToken = jwtTokenUtil.generateToken(userDetails)
-                    response.setHeader("Authorization", "Bearer $newToken")
+                    if (!response.isCommitted) {
+                        response.setHeader("Authorization", "Bearer $newToken")
+                    } else {
+                        logger.warn("Response already committed, cannot set Authorization header for token refresh")
+                    }
                 }
             }
         }

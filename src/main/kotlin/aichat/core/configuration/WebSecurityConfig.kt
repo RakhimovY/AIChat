@@ -35,10 +35,22 @@ class WebSecurityConfig(
             .cors { it.configurationSource(corsConfigurationSource()) }
             .authorizeHttpRequests {
                 it.requestMatchers("/api/auth/**").permitAll()
+                // Explicitly configure the streaming endpoint to allow authenticated users
+                it.requestMatchers("/api/chat/ask/stream").authenticated()
                 it.anyRequest().authenticated()
             }
             .sessionManagement { it.sessionCreationPolicy(SessionCreationPolicy.STATELESS) }
-            .exceptionHandling { it.authenticationEntryPoint(HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED)) }
+            .exceptionHandling { 
+                it.authenticationEntryPoint { request, response, authException ->
+                    // Check if response is already committed before trying to handle the exception
+                    if (!response.isCommitted) {
+                        response.sendError(HttpStatus.UNAUTHORIZED.value(), "Unauthorized: ${authException.message}")
+                    } else {
+                        val logger = org.slf4j.LoggerFactory.getLogger(WebSecurityConfig::class.java)
+                        logger.warn("Unable to handle the Spring Security Exception because the response is already committed.")
+                    }
+                }
+            }
             .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter::class.java)
 
         return http.build()
@@ -63,7 +75,8 @@ class WebSecurityConfig(
         val configuration = CorsConfiguration()
         configuration.allowedOrigins = listOf("http://localhost:3000")
         configuration.allowedMethods = listOf("GET", "POST", "PUT", "DELETE", "OPTIONS")
-        configuration.allowedHeaders = listOf("Authorization", "Content-Type", "X-Requested-With")
+        configuration.allowedHeaders = listOf("Authorization", "Content-Type", "X-Requested-With", "Accept")
+        configuration.exposedHeaders = listOf("Authorization") // Expose Authorization header for token refresh
         configuration.allowCredentials = true
         val source = UrlBasedCorsConfigurationSource()
         source.registerCorsConfiguration("/**", configuration)

@@ -16,7 +16,7 @@ data class Message(
     val role: ChatMessageRole,
 
     @Column(columnDefinition = "TEXT", nullable = false)
-    val content: String,
+    var content: String,
 
     @Column(name = "created_at")
     val createdAt: LocalDateTime = LocalDateTime.now(),
