@@ -3,6 +3,7 @@ package aichat.core.services
 import aichat.core.dto.ChatRespDTO
 import aichat.core.dto.MessageDTO
 import aichat.core.enums.ChatMessageRole
+import aichat.core.localization.Translations
 import aichat.core.models.Chat
 import aichat.core.models.Message
 import aichat.core.repository.MessageRepository
@@ -71,7 +72,7 @@ class MessageService(
     ): List<ChatRespDTO> {
         val chat =
             messageDTO.chatId?.let { chatService.getChatById(it) }
-                ?: chatService.createChat(userService.getUserByEmail(userEmail))
+                ?: chatService.createChat(userService.getUserByEmail(userEmail), language = messageDTO.language)
 
         val message =
             Message(
@@ -83,7 +84,7 @@ class MessageService(
         messageRepository.save(message)
 
         // Update chat title based on first message if it's a new chat with default title
-        if (chat.messages.size == 1 && chat.title == "Новый чат") {
+        if (chat.messages.size == 1 && (chat.title == "Новый чат" || chat.title == "Жаңа чат" || chat.title == "New Chat")) {
             // Generate title from user message (truncate if too long)
             val titleFromMessage = if (messageDTO.content.length > 50) {
                 messageDTO.content.substring(0, 47) + "..."
@@ -94,7 +95,7 @@ class MessageService(
             chatRepository.save(chat)
         }
 
-        askAI(messageDTO.content, chat, messageDTO.country)
+        askAI(messageDTO.content, chat, messageDTO.country, messageDTO.language)
 
         return chat.messages.map {
             ChatRespDTO(
@@ -138,28 +139,45 @@ class MessageService(
         }
     }
 
-    fun askAI(userMessage: String, chat: Chat, country: String? = null) {
+    fun askAI(userMessage: String, chat: Chat, country: String? = null, language: String? = null) {
         val memoryId = chat.id.toString()
         val logger = org.slf4j.LoggerFactory.getLogger(MessageService::class.java)
 
         try {
             chatMemory.add(memoryId, listOf(UserMessage(userMessage)))
 
-            // Create final prompt with country-specific instructions if country is provided
-            val finalPrompt = if (country != null) {
-                // Map country code to full name if it's a code
-                val countryName = getCountryNameByCode(country)
+            // Create final prompt with country-specific and language-specific instructions
+            val finalPrompt = if (country != null || language != null) {
+                val promptBuilder = StringBuilder()
+                promptBuilder.append(systemPrompt)
+                promptBuilder.append("\n\n")
 
-                """
-                $systemPrompt
+                // Add country-specific instructions if country is provided
+                if (country != null) {
+                    // Map country code to full name if it's a code
+                    val countryName = getCountryNameByCode(country)
 
-                Пользователь находится в стране: $countryName.
-                Адаптируй свой ответ к правовой системе и законодательству этой страны.
-                Используй актуальные законы, нормативные акты и правовые документы этой страны.
-                Если цитируешь законы, конституцию или другие правовые документы, указывай их точные названия и номера статей.
+                    promptBuilder.append("Пользователь находится в стране: $countryName.\n")
+                    promptBuilder.append("Адаптируй свой ответ к правовой системе и законодательству этой страны.\n")
+                    promptBuilder.append("Используй актуальные законы, нормативные акты и правовые документы этой страны.\n")
+                    promptBuilder.append("Если цитируешь законы, конституцию или другие правовые документы, указывай их точные названия и номера статей.\n\n")
+                }
 
-                Вот мой вопрос: $userMessage
-                """
+                // Add language-specific instructions if language is provided
+                if (language != null) {
+                    val languageName = when (language) {
+                        "ru" -> "русском"
+                        "kk" -> "казахском"
+                        "en" -> "английском"
+                        else -> "русском" // Default to Russian if unknown language
+                    }
+
+                    promptBuilder.append("Пользователь предпочитает общение на $languageName языке.\n")
+                    promptBuilder.append("Пожалуйста, отвечай на $languageName языке.\n\n")
+                }
+
+                promptBuilder.append("Вот мой вопрос: $userMessage")
+                promptBuilder.toString()
             } else {
                 """
                 $systemPrompt
@@ -168,14 +186,14 @@ class MessageService(
                 """
             }
 
-            logger.info("Sending prompt to AI for chat ${chat.id}, country: ${country ?: "not specified"}")
+            logger.info("Sending prompt to AI for chat ${chat.id}, country: ${country ?: "not specified"}, language: ${language ?: "not specified"}")
             val startTime = System.currentTimeMillis()
 
             val aiContent = try {
                 chatClient.prompt(finalPrompt).call().content()
             } catch (e: Exception) {
                 logger.error("Error calling AI service: ${e.message}", e)
-                "Извините, произошла ошибка при обработке вашего запроса. Пожалуйста, попробуйте еще раз позже."
+                Translations.get("error", language)
             }
 
             val endTime = System.currentTimeMillis()
@@ -195,7 +213,7 @@ class MessageService(
             logger.error("Unexpected error in askAI: ${e.message}", e)
             val errorMessage = Message(
                 chat = chat,
-                content = "Произошла системная ошибка. Пожалуйста, попробуйте еще раз позже.",
+                content = Translations.get("error", language),
                 role = ChatMessageRole.assistant
             )
             chat.messages.add(errorMessage)
