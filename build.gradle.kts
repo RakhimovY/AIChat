@@ -36,7 +36,7 @@ dependencies {
     // Kotlin
     implementation("org.jetbrains.kotlin:kotlin-reflect")
     implementation("com.fasterxml.jackson.module:jackson-module-kotlin:$jacksonVersion")
-    implementation ("com.fasterxml.jackson.core:jackson-annotations:${jacksonVersion}")
+    implementation("com.fasterxml.jackson.core:jackson-annotations:${jacksonVersion}")
 
     // JWT
     implementation("io.jsonwebtoken:jjwt-api:0.11.5")
@@ -47,6 +47,9 @@ dependencies {
     runtimeOnly("org.postgresql:postgresql")
 
     implementation("me.paulschwarz:spring-dotenv:4.0.0")
+
+    // MinIO - Object Storage
+    implementation("io.minio:minio:8.5.9")
 
     // Dev & Test
     developmentOnly("org.springframework.boot:spring-boot-devtools")

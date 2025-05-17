@@ -8,5 +8,8 @@ data class ChatRespDTO(
     val role: ChatMessageRole,
     val content: String,
     val createdAt: LocalDateTime,
-    val chatId: Long
+    val chatId: Long,
+    val documentId: Long? = null,
+    val documentName: String? = null,
+    val documentUrl: String? = null
 )

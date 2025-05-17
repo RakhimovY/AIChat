@@ -23,13 +23,18 @@ data class Message(
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "chat_id", nullable = false)
-    val chat: Chat
+    val chat: Chat,
+
+    @OneToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "document_id")
+    val document: Document? = null
 ) {
     constructor() : this(
         id = 0,
         role = ChatMessageRole.user,
         content = "",
         createdAt = LocalDateTime.now(),
-        chat = Chat()
+        chat = Chat(),
+        document = null
     )
 }

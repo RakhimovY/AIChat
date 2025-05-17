@@ -5,6 +5,7 @@ import aichat.core.dto.MessageDTO
 import aichat.core.enums.ChatMessageRole
 import aichat.core.localization.Translations
 import aichat.core.models.Chat
+import aichat.core.models.Document
 import aichat.core.models.Message
 import aichat.core.repository.MessageRepository
 import org.springframework.ai.chat.client.ChatClient
@@ -16,6 +17,8 @@ import org.springframework.ai.chat.messages.AssistantMessage
 import org.springframework.ai.chat.messages.UserMessage
 import org.springframework.jdbc.core.JdbcTemplate
 import org.springframework.stereotype.Service
+import org.springframework.web.servlet.support.ServletUriComponentsBuilder
+import java.io.IOException
 import kotlin.math.pow
 
 @Service
@@ -23,6 +26,7 @@ class MessageService(
     private val messageRepository: MessageRepository,
     private val chatService: ChatService,
     private val userService: UserService,
+    private val documentService: DocumentService,
     private val jdbcTemplate: JdbcTemplate,
     private val chatRepository: aichat.core.repository.ChatRepository,
     chatClientBuilder: ChatClient.Builder,
@@ -86,11 +90,24 @@ class MessageService(
             messageDTO.chatId?.let { chatService.getChatById(it) }
                 ?: chatService.createChat(userService.getUserByEmail(userEmail), language = messageDTO.language)
 
+        // Process document if present
+        var document: Document? = null
+        if (messageDTO.document != null && !messageDTO.document.isEmpty) {
+            try {
+                document = documentService.saveDocument(messageDTO.document, chat)
+            } catch (e: IOException) {
+                // Log error but continue with message creation
+                val logger = org.slf4j.LoggerFactory.getLogger(MessageService::class.java)
+                logger.error("Error saving document: ${e.message}", e)
+            }
+        }
+
         val message =
             Message(
                 chat = chat,
                 content = messageDTO.content,
-                role = ChatMessageRole.user
+                role = ChatMessageRole.user,
+                document = document
             )
         chat.messages.add(message)
         messageRepository.save(message)
@@ -107,15 +124,25 @@ class MessageService(
             chatRepository.save(chat)
         }
 
-        askAI(messageDTO.content, chat, messageDTO.country, messageDTO.language)
+        // Extract document content for AI if present
+        val documentContent = document?.let { documentService.extractTextContent(it) }
 
-        return chat.messages.map {
+        askAI(messageDTO.content, chat, messageDTO.country, messageDTO.language, documentContent)
+
+        // Generate document URLs for response
+        return chat.messages.map { msg ->
+            val msgDocument = msg.document
+            val baseUrl = ServletUriComponentsBuilder.fromCurrentContextPath().build().toUriString()
+
             ChatRespDTO(
-                id = it.id,
-                role = it.role,
-                content = it.content,
-                createdAt = it.createdAt,
-                chatId = it.chat.id
+                id = msg.id,
+                role = msg.role,
+                content = msg.content,
+                createdAt = msg.createdAt,
+                chatId = msg.chat.id,
+                documentId = msgDocument?.id,
+                documentName = msgDocument?.name,
+                documentUrl = msgDocument?.let { "$baseUrl/api/documents/${it.id}" }
             )
         }
     }
@@ -154,7 +181,7 @@ class MessageService(
         }
     }
 
-    fun askAI(userMessage: String, chat: Chat, country: String? = null, language: String? = null) {
+    fun askAI(userMessage: String, chat: Chat, country: String? = null, language: String? = null, documentContent: String? = null) {
         val memoryId = chat.id.toString()
         val logger = org.slf4j.LoggerFactory.getLogger(MessageService::class.java)
 
@@ -163,7 +190,7 @@ class MessageService(
 
             // Create final prompt with country-specific and language-specific instructions
             // Use StringBuilder with initial capacity to reduce reallocations
-            val promptBuilder = StringBuilder(systemPrompt.length + 500) // Allocate enough space for the prompt and additional instructions
+            val promptBuilder = StringBuilder(systemPrompt.length + 1000) // Allocate enough space for the prompt, instructions, and document content
 
             // Start with system prompt
             promptBuilder.append(systemPrompt)
@@ -193,6 +220,16 @@ class MessageService(
                     .append("Пожалуйста, отвечай на ")
                     .append(languageName)
                     .append(" языке.\n\n")
+            }
+
+            // Add document content if provided
+            if (documentContent != null) {
+                promptBuilder.append("Пользователь предоставил следующий документ. Используй информацию из него для ответа на вопрос:\n\n")
+                    .append("--- НАЧАЛО ДОКУМЕНТА ---\n")
+                    .append(documentContent)
+                    .append("\n--- КОНЕЦ ДОКУМЕНТА ---\n\n")
+                    .append("Анализируй информацию из документа и используй ее для ответа на вопрос пользователя. ")
+                    .append("Если документ содержит релевантную информацию, ссылайся на нее в своем ответе.\n\n")
             }
 
             // Add user message
@@ -269,13 +306,19 @@ class MessageService(
 
     fun getChatMessages(chatId: Long): List<ChatRespDTO> {
         val messages = messageRepository.findByChatId(chatId)
-        return messages.map {
+        val baseUrl = ServletUriComponentsBuilder.fromCurrentContextPath().build().toUriString()
+
+        return messages.map { msg ->
+            val document = msg.document
             ChatRespDTO(
-                id = it.id,
-                role = it.role,
-                content = it.content,
-                createdAt = it.createdAt,
-                chatId = it.chat.id
+                id = msg.id,
+                role = msg.role,
+                content = msg.content,
+                createdAt = msg.createdAt,
+                chatId = msg.chat.id,
+                documentId = document?.id,
+                documentName = document?.name,
+                documentUrl = document?.let { "$baseUrl/api/documents/${it.id}" }
             )
         }
     }
