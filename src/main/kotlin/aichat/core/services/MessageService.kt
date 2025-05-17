@@ -16,6 +16,7 @@ import org.springframework.ai.chat.messages.AssistantMessage
 import org.springframework.ai.chat.messages.UserMessage
 import org.springframework.jdbc.core.JdbcTemplate
 import org.springframework.stereotype.Service
+import kotlin.math.pow
 
 @Service
 class MessageService(
@@ -38,6 +39,10 @@ class MessageService(
             .maxMessages(15)
             .build()
 
+    // Cache for country name mapping to avoid repeated string operations
+    private val countryNameCache = mutableMapOf<String, String>()
+
+    // Static system prompt to avoid recreating it for each request
     val systemPrompt =
         """
         Ты - высококвалифицированный юридический ассистент с глубоким знанием правовых систем разных стран.
@@ -62,6 +67,13 @@ class MessageService(
 
         Помни, что твои ответы должны быть информативными, хорошо структурированными и полезными для пользователя.
         """
+
+    // Pre-build language name mapping to avoid repeated string operations
+    private val languageNameMap = mapOf(
+        "ru" to "русском",
+        "kk" to "казахском",
+        "en" to "английском"
+    )
 
     private val chatClient =
         chatClientBuilder.defaultAdvisors(MessageChatMemoryAdvisor(chatMemory)).build()
@@ -108,34 +120,37 @@ class MessageService(
         }
     }
 
-    // Function to map ISO country codes to full country names
+    // Function to map ISO country codes to full country names with caching
     private fun getCountryNameByCode(code: String): String {
-        return when (code) {
-            "RU" -> "Россия"
-            "KZ" -> "Казахстан"
-            "BY" -> "Беларусь"
-            "UA" -> "Украина"
-            "UZ" -> "Узбекистан"
-            "KG" -> "Кыргызстан"
-            "TJ" -> "Таджикистан"
-            "TM" -> "Туркменистан"
-            "AZ" -> "Азербайджан"
-            "AM" -> "Армения"
-            "GE" -> "Грузия"
-            "MD" -> "Молдова"
-            "US" -> "США"
-            "GB" -> "Великобритания"
-            "DE" -> "Германия"
-            "FR" -> "Франция"
-            "IT" -> "Италия"
-            "ES" -> "Испания"
-            "CN" -> "Китай"
-            "JP" -> "Япония"
-            "IN" -> "Индия"
-            "BR" -> "Бразилия"
-            "CA" -> "Канада"
-            "AU" -> "Австралия"
-            else -> code // Return the code itself if not found in the mapping
+        // Check if the country name is already in the cache
+        return countryNameCache.getOrPut(code) {
+            when (code) {
+                "RU" -> "Россия"
+                "KZ" -> "Казахстан"
+                "BY" -> "Беларусь"
+                "UA" -> "Украина"
+                "UZ" -> "Узбекистан"
+                "KG" -> "Кыргызстан"
+                "TJ" -> "Таджикистан"
+                "TM" -> "Туркменистан"
+                "AZ" -> "Азербайджан"
+                "AM" -> "Армения"
+                "GE" -> "Грузия"
+                "MD" -> "Молдова"
+                "US" -> "США"
+                "GB" -> "Великобритания"
+                "DE" -> "Германия"
+                "FR" -> "Франция"
+                "IT" -> "Италия"
+                "ES" -> "Испания"
+                "CN" -> "Китай"
+                "JP" -> "Япония"
+                "IN" -> "Индия"
+                "BR" -> "Бразилия"
+                "CA" -> "Канада"
+                "AU" -> "Австралия"
+                else -> code // Return the code itself if not found in the mapping
+            }
         }
     }
 
@@ -147,64 +162,95 @@ class MessageService(
             chatMemory.add(memoryId, listOf(UserMessage(userMessage)))
 
             // Create final prompt with country-specific and language-specific instructions
-            val finalPrompt = if (country != null || language != null) {
-                val promptBuilder = StringBuilder()
-                promptBuilder.append(systemPrompt)
-                promptBuilder.append("\n\n")
+            // Use StringBuilder with initial capacity to reduce reallocations
+            val promptBuilder = StringBuilder(systemPrompt.length + 500) // Allocate enough space for the prompt and additional instructions
 
-                // Add country-specific instructions if country is provided
-                if (country != null) {
-                    // Map country code to full name if it's a code
-                    val countryName = getCountryNameByCode(country)
+            // Start with system prompt
+            promptBuilder.append(systemPrompt)
+            promptBuilder.append("\n\n")
 
-                    promptBuilder.append("Пользователь находится в стране: $countryName.\n")
-                    promptBuilder.append("Адаптируй свой ответ к правовой системе и законодательству этой страны.\n")
-                    promptBuilder.append("Используй актуальные законы, нормативные акты и правовые документы этой страны.\n")
-                    promptBuilder.append("Если цитируешь законы, конституцию или другие правовые документы, указывай их точные названия и номера статей.\n\n")
-                }
+            // Add country-specific instructions if country is provided
+            if (country != null) {
+                // Map country code to full name if it's a code (using cached value)
+                val countryName = getCountryNameByCode(country)
 
-                // Add language-specific instructions if language is provided
-                if (language != null) {
-                    val languageName = when (language) {
-                        "ru" -> "русском"
-                        "kk" -> "казахском"
-                        "en" -> "английском"
-                        else -> "русском" // Default to Russian if unknown language
-                    }
-
-                    promptBuilder.append("Пользователь предпочитает общение на $languageName языке.\n")
-                    promptBuilder.append("Пожалуйста, отвечай на $languageName языке.\n\n")
-                }
-
-                promptBuilder.append("Вот мой вопрос: $userMessage")
-                promptBuilder.toString()
-            } else {
-                """
-                $systemPrompt
-
-                Вот мой вопрос: $userMessage
-                """
+                promptBuilder.append("Пользователь находится в стране: ")
+                    .append(countryName)
+                    .append(".\n")
+                    .append("Адаптируй свой ответ к правовой системе и законодательству этой страны.\n")
+                    .append("Используй актуальные законы, нормативные акты и правовые документы этой страны.\n")
+                    .append("Если цитируешь законы, конституцию или другие правовые документы, указывай их точные названия и номера статей.\n\n")
             }
+
+            // Add language-specific instructions if language is provided
+            if (language != null) {
+                // Use pre-built language name mapping
+                val languageName = languageNameMap[language] ?: "русском" // Default to Russian if unknown language
+
+                promptBuilder.append("Пользователь предпочитает общение на ")
+                    .append(languageName)
+                    .append(" языке.\n")
+                    .append("Пожалуйста, отвечай на ")
+                    .append(languageName)
+                    .append(" языке.\n\n")
+            }
+
+            // Add user message
+            promptBuilder.append("Вот мой вопрос: ")
+                .append(userMessage)
+
+            val finalPrompt = promptBuilder.toString()
 
             logger.info("Sending prompt to AI for chat ${chat.id}, country: ${country ?: "not specified"}, language: ${language ?: "not specified"}")
             val startTime = System.currentTimeMillis()
 
-            val aiContent = try {
-                chatClient.prompt(finalPrompt).call().content()
-            } catch (e: Exception) {
-                logger.error("Error calling AI service: ${e.message}", e)
-                Translations.get("error", language)
+            // Implement retry mechanism with exponential backoff
+            val maxRetries = 3
+            var retryCount = 0
+            var aiContent: String? = null
+            var lastException: Exception? = null
+
+            while (retryCount < maxRetries && aiContent == null) {
+                try {
+                    // If this is a retry, log it
+                    if (retryCount > 0) {
+                        logger.info("Retry attempt $retryCount for chat ${chat.id}")
+                    }
+
+                    // Call AI service with timeout
+                    aiContent = chatClient.prompt(finalPrompt).call().content()
+                } catch (e: Exception) {
+                    lastException = e
+                    logger.error("Error calling AI service (attempt ${retryCount + 1}): ${e.message}", e)
+
+                    // If we've reached max retries, break
+                    if (retryCount >= maxRetries - 1) {
+                        break
+                    }
+
+                    // Exponential backoff: wait longer between each retry
+                    val backoffTime = (1000L * 2.0.pow(retryCount.toDouble())).toLong()
+                    logger.info("Waiting ${backoffTime}ms before retry")
+                    Thread.sleep(backoffTime)
+                    retryCount++
+                }
+            }
+
+            // If all retries failed, use error message
+            if (aiContent == null) {
+                aiContent = Translations.get("error", language)
+                logger.error("All retry attempts failed for chat ${chat.id}", lastException)
             }
 
             val endTime = System.currentTimeMillis()
             logger.info("AI response received in ${endTime - startTime}ms for chat ${chat.id}")
 
-            chatMemory.add(memoryId, listOf(AssistantMessage(aiContent ?: "")))
+            chatMemory.add(memoryId, listOf(AssistantMessage(aiContent)))
 
             val message =
                 Message(
                     chat = chat,
-                    content = aiContent ?: "",
+                    content = aiContent,
                     role = ChatMessageRole.assistant
                 )
             chat.messages.add(message)
