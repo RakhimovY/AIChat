@@ -3,10 +3,17 @@ package aichat.core.services
 import aichat.core.models.Chat
 import aichat.core.models.Document
 import aichat.core.repository.DocumentRepository
+import org.apache.pdfbox.pdmodel.PDDocument
+import org.apache.pdfbox.text.PDFTextStripper
+import org.apache.poi.hwpf.HWPFDocument
+import org.apache.poi.xwpf.extractor.XWPFWordExtractor
+import org.apache.poi.xwpf.usermodel.XWPFDocument
+import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.stereotype.Service
 import org.springframework.web.multipart.MultipartFile
 import java.io.IOException
+import java.io.InputStream
 import java.nio.charset.StandardCharsets
 
 @Service
@@ -15,6 +22,7 @@ class DocumentService(
     private val minioService: MinioService,
     @Value("\${minio.bucket-name}") private val bucketName: String
 ) {
+    private val logger = LoggerFactory.getLogger(DocumentService::class.java)
     /**
      * Save a document to MinIO and store metadata in the database
      * @param file The uploaded file
@@ -62,27 +70,87 @@ class DocumentService(
 
     /**
      * Extract text content from a document for AI processing
-     * This is a simple implementation that works with text files
-     * For more complex document types (PDF, DOCX, etc.), additional libraries would be needed
+     * Supports text files, PDF documents, and Word documents (DOCX, DOC)
      */
     fun extractTextContent(document: Document): String {
         try {
             // Download the file from MinIO
             val inputStream = minioService.downloadFile(document.objectName)
 
+            logger.info("Extracting content from document: ${document.name}, type: ${document.contentType}")
+
             return when {
+                // Text files
                 document.contentType.startsWith("text/") -> {
-                    // For text files, read the content as a string
-                    inputStream.bufferedReader(StandardCharsets.UTF_8).use { it.readText() }
+                    logger.info("Processing text file")
+                    extractTextFromTextFile(inputStream)
                 }
-                // For PDF, DOCX, etc., you would use specialized libraries
-                // This is a placeholder for future implementation
+
+                // PDF files
+                document.contentType == "application/pdf" -> {
+                    logger.info("Processing PDF file")
+                    extractTextFromPdf(inputStream)
+                }
+
+                // Word documents - DOCX
+                document.contentType == "application/vnd.openxmlformats-officedocument.wordprocessingml.document" -> {
+                    logger.info("Processing DOCX file")
+                    extractTextFromDocx(inputStream)
+                }
+
+                // Word documents - DOC
+                document.contentType == "application/msword" -> {
+                    logger.info("Processing DOC file")
+                    extractTextFromDoc(inputStream)
+                }
+
+                // Unsupported file type
                 else -> {
-                    "Document content could not be extracted. File type: ${document.contentType}"
+                    logger.warn("Unsupported file type: ${document.contentType}")
+                    "Document content could not be extracted. Unsupported file type: ${document.contentType}"
                 }
             }
         } catch (e: Exception) {
+            logger.error("Error extracting document content", e)
             return "Error extracting document content: ${e.message}"
+        }
+    }
+
+    /**
+     * Extract text from a text file
+     */
+    private fun extractTextFromTextFile(inputStream: InputStream): String {
+        return inputStream.bufferedReader(StandardCharsets.UTF_8).use { it.readText() }
+    }
+
+    /**
+     * Extract text from a PDF file using Apache PDFBox
+     */
+    private fun extractTextFromPdf(inputStream: InputStream): String {
+        return PDDocument.load(inputStream).use { document ->
+            val stripper = PDFTextStripper()
+            stripper.sortByPosition = true
+            stripper.getText(document)
+        }
+    }
+
+    /**
+     * Extract text from a DOCX file using Apache POI
+     */
+    private fun extractTextFromDocx(inputStream: InputStream): String {
+        return XWPFDocument(inputStream).use { document ->
+            XWPFWordExtractor(document).use { extractor ->
+                extractor.text
+            }
+        }
+    }
+
+    /**
+     * Extract text from a DOC file using Apache POI
+     */
+    private fun extractTextFromDoc(inputStream: InputStream): String {
+        return HWPFDocument(inputStream).use { document ->
+            document.text.toString()
         }
     }
 
