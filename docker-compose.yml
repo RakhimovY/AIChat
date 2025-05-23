@@ -15,7 +15,7 @@ services:
       - AIChat_232506_network
 
   minio:
-    image: minio/minio
+    image: minio/minio:latest
     ports:
       - "9000:9000"      # API порт
       - "9001:9001"      # Консоль управления

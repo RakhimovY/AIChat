@@ -117,7 +117,7 @@ class UserService(
         return ApplicationUserDetails.builder()
             .username(this.email)
             .password(this.passwordHash)
-            .roles("USER")
+            .roles(this.role)
             .build()
     }
 
