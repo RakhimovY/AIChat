@@ -5,8 +5,10 @@ import aichat.core.dto.ChatRespDTO
 import aichat.core.dto.MessageDTO
 import aichat.core.services.ChatService
 import aichat.core.services.MessageService
+import org.springframework.http.MediaType
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.*
+import org.springframework.web.multipart.MultipartFile
 import java.security.Principal
 
 
@@ -18,6 +20,26 @@ class ChatController(
 ) {
     @PostMapping("/ask")
     fun chat(@RequestBody messageDTO: MessageDTO, principal: Principal): List<ChatRespDTO> {
+        return messageService.createMessage(messageDTO, principal.name)
+    }
+
+    @PostMapping("/ask-with-document", consumes = [MediaType.MULTIPART_FORM_DATA_VALUE])
+    fun chatWithDocument(
+        @RequestParam("content") content: String,
+        @RequestParam("document") document: MultipartFile,
+        @RequestParam("chatId", required = false) chatId: Long?,
+        @RequestParam("country", required = false) country: String?,
+        @RequestParam("language", required = false) language: String?,
+        principal: Principal
+    ): List<ChatRespDTO> {
+        // Create MessageDTO from form data
+        val messageDTO = MessageDTO(
+            chatId = chatId,
+            content = content,
+            country = country,
+            language = language,
+            document = document
+        )
         return messageService.createMessage(messageDTO, principal.name)
     }
 

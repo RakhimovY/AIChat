@@ -17,5 +17,7 @@ data class RegistrationRequest(
 
     @field:NotBlank @field:Email val email: String,
 
-    val name: String? = null
+    val name: String? = null,
+
+    val country: String? = null
 )

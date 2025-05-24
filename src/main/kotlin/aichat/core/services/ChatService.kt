@@ -2,6 +2,7 @@ package aichat.core.services
 
 import aichat.core.dto.ChatDTO
 import aichat.core.exception.ChatNotFounded
+import aichat.core.localization.Translations
 import aichat.core.models.Chat
 import aichat.core.models.User
 import aichat.core.repository.ChatRepository
@@ -13,9 +14,10 @@ class ChatService(
     private val userService: UserService
 ) {
 
-    fun createChat(user: User, title: String? = "Новый чат"): Chat {
+    fun createChat(user: User, title: String? = null, language: String? = null): Chat {
+        val chatTitle = title ?: Translations.get("defaultTitle", language)
         val chat = Chat(
-            title = title, client = user
+            title = chatTitle, client = user
         )
         return chatRepository.save(chat)
     }

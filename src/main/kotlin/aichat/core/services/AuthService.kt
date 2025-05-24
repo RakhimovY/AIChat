@@ -56,7 +56,8 @@ class AuthService(
         return ResponseEntity.ok(LoginResponse(
             token = token, 
             privilege = userDetails.authorities.map { it.authority },
-            name = user.name
+            name = user.name,
+            country = user.country
         ))
     }
 

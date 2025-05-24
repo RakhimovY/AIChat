@@ -29,11 +29,26 @@ data class User(
     @Column(name = "provider", nullable = true)
     var provider: String? = "credentials",
 
+    @Column(name = "country", nullable = true)
+    var country: String? = null,
+
+    @Column(name = "subscription_id", nullable = true)
+    var subscriptionId: String? = null,
+
+    @Column(name = "subscription_status", nullable = true)
+    var subscriptionStatus: String? = null,
+
+    @Column(name = "role", nullable = false)
+    var role: String = "USER",
+
     @Column(name = "created_at")
     var createdAt: LocalDateTime = LocalDateTime.now(),
 
     @OneToMany(mappedBy = "client", cascade = [CascadeType.ALL], orphanRemoval = true)
-    val chats: MutableList<Chat> = mutableListOf()
+    val chats: MutableList<Chat> = mutableListOf(),
+
+    @OneToMany(mappedBy = "user", cascade = [CascadeType.ALL], orphanRemoval = true)
+    val subscriptions: MutableList<Subscription> = mutableListOf()
 ) {
     constructor() : this(
         id = 0,
@@ -43,7 +58,12 @@ data class User(
         googleId = null,
         picture = null,
         provider = "credentials",
+        country = null,
+        subscriptionId = null,
+        subscriptionStatus = null,
+        role = "USER",
         createdAt = LocalDateTime.now(),
-        chats = mutableListOf()
+        chats = mutableListOf(),
+        subscriptions = mutableListOf()
     )
 }
