@@ -19,10 +19,12 @@ import java.nio.charset.StandardCharsets
 @Service
 class DocumentService(
     private val documentRepository: DocumentRepository,
+    private val messageRepository: aichat.core.repository.MessageRepository,
     private val minioService: MinioService,
     @Value("\${minio.bucket-name}") private val bucketName: String
 ) {
     private val logger = LoggerFactory.getLogger(DocumentService::class.java)
+
     /**
      * Save a document to MinIO and store metadata in the database
      * @param file The uploaded file
@@ -32,13 +34,9 @@ class DocumentService(
      */
     @Throws(IOException::class)
     fun saveDocument(file: MultipartFile, chat: Chat): Document {
-        // Generate a unique object name for MinIO
         val objectName = "${chat.id}-${System.currentTimeMillis()}-${file.originalFilename}"
-
-        // Upload file to MinIO
         minioService.uploadFile(file, objectName)
 
-        // Create and save document metadata
         val document = Document(
             name = file.originalFilename ?: "unnamed_file",
             contentType = file.contentType ?: "application/octet-stream",
@@ -57,6 +55,31 @@ class DocumentService(
      */
     fun getDocumentsByChatId(chatId: Long): List<Document> {
         return documentRepository.findByChat_Id(chatId)
+    }
+
+    /**
+     * Delete all documents for a chat
+     * @param chatId The ID of the chat
+     * @return List of documents
+     */
+    fun deleteDocumentByChatId(chatId: Long) {
+        val documents = getDocumentsByChatId(chatId)
+        documents.forEach { document ->
+            try {
+                // First find and delete any messages that reference this document
+                val messagesWithDocument = messageRepository.findByDocumentId(document.id)
+                if (messagesWithDocument.isNotEmpty()) {
+                    logger.info("Deleting ${messagesWithDocument.size} messages that reference document ${document.id}")
+                    messageRepository.deleteAll(messagesWithDocument)
+                }
+
+                // Then delete the document file and database record
+                minioService.deleteFile(document.objectName)
+                documentRepository.delete(document)
+            } catch (e: Exception) {
+                logger.error("Error deleting file: ${document.objectName}", e)
+            }
+        }
     }
 
     /**
@@ -80,31 +103,26 @@ class DocumentService(
             logger.info("Extracting content from document: ${document.name}, type: ${document.contentType}")
 
             return when {
-                // Text files
                 document.contentType.startsWith("text/") -> {
                     logger.info("Processing text file")
                     extractTextFromTextFile(inputStream)
                 }
 
-                // PDF files
                 document.contentType == "application/pdf" -> {
                     logger.info("Processing PDF file")
                     extractTextFromPdf(inputStream)
                 }
 
-                // Word documents - DOCX
                 document.contentType == "application/vnd.openxmlformats-officedocument.wordprocessingml.document" -> {
                     logger.info("Processing DOCX file")
                     extractTextFromDocx(inputStream)
                 }
 
-                // Word documents - DOC
                 document.contentType == "application/msword" -> {
                     logger.info("Processing DOC file")
                     extractTextFromDoc(inputStream)
                 }
 
-                // Unsupported file type
                 else -> {
                     logger.warn("Unsupported file type: ${document.contentType}")
                     "Document content could not be extracted. Unsupported file type: ${document.contentType}"

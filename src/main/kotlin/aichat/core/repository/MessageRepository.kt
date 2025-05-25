@@ -5,4 +5,5 @@ import org.springframework.data.jpa.repository.JpaRepository
 
 interface MessageRepository : JpaRepository<Message, Long> {
     fun findByChatId(chatId: Long): List<Message>
+    fun findByDocumentId(documentId: Long): List<Message>
 }

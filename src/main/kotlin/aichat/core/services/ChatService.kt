@@ -6,12 +6,15 @@ import aichat.core.localization.Translations
 import aichat.core.models.Chat
 import aichat.core.models.User
 import aichat.core.repository.ChatRepository
+import aichat.core.repository.MessageRepository
 import org.springframework.stereotype.Service
 
 @Service
 class ChatService(
     private val chatRepository: ChatRepository,
-    private val userService: UserService
+    private val userService: UserService,
+    private val messageRepository: MessageRepository,
+    private val documentService: DocumentService,
 ) {
 
     fun createChat(user: User, title: String? = null, language: String? = null): Chat {
@@ -32,6 +35,12 @@ class ChatService(
 
     fun deleteChat(id: Long) {
         val chat = getChatById(id)
+        // First delete documents to avoid transient object references
+        documentService.deleteDocumentByChatId(id)
+        // Then delete messages - fetch them explicitly to avoid LazyInitializationException
+        val messages = messageRepository.findByChatId(id)
+        messageRepository.deleteAll(messages)
+        // Finally delete the chat
         chatRepository.delete(chat)
     }
 
@@ -49,11 +58,13 @@ class ChatService(
         val user = userService.getUserByEmail(userEmail)
         val chats = getChatsByUserId(user.id)
         return chats.map { chat ->
+            // Get message count explicitly to avoid LazyInitializationException
+            val messageCount = messageRepository.findByChatId(chat.id).size
             ChatDTO(
                 id = chat.id,
                 title = chat.title,
                 createdAt = chat.createdAt,
-                messageCount = chat.messages.size
+                messageCount = messageCount
             )
         }
     }

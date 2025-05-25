@@ -17,6 +17,7 @@ import org.springframework.ai.chat.memory.MessageWindowChatMemory
 import org.springframework.ai.chat.memory.jdbc.JdbcChatMemoryRepository
 import org.springframework.ai.chat.messages.AssistantMessage
 import org.springframework.ai.chat.messages.UserMessage
+import org.springframework.context.annotation.Lazy
 import org.springframework.jdbc.core.JdbcTemplate
 import org.springframework.stereotype.Service
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder
@@ -25,7 +26,7 @@ import java.io.IOException
 @Service
 class MessageService(
     private val messageRepository: MessageRepository,
-    private val chatService: ChatService,
+    @Lazy private val chatService: ChatService,
     private val userService: UserService,
     private val documentService: DocumentService,
     private val jdbcTemplate: JdbcTemplate,
@@ -94,7 +95,7 @@ class MessageService(
         // Process document if present
         val document = processDocument(messageDTO.document, chat)
 
-        val message = createAndSaveMessage(
+        createAndSaveMessage(
             chat = chat,
             content = messageDTO.content,
             role = ChatMessageRole.user,
@@ -109,8 +110,9 @@ class MessageService(
 
         askAI(messageDTO.content, chat, messageDTO.country, messageDTO.language, documentContent)
 
-        // Generate document URLs for response
-        return chat.messages.map { mapMessageToDTO(it) }
+        // Generate document URLs for response - fetch messages explicitly to avoid LazyInitializationException
+        val messages = messageRepository.findByChatId(chat.id)
+        return messages.map { mapMessageToDTO(it) }
     }
 
     /**
@@ -123,7 +125,8 @@ class MessageService(
         documentContent: String? = null
     ): String {
         // Use StringBuilder with initial capacity to reduce reallocations
-        val promptBuilder = StringBuilder(systemPrompt.length + 1000) // Allocate enough space for the prompt, instructions, and document content
+        val promptBuilder =
+            StringBuilder(systemPrompt.length + 1000) // Allocate enough space for the prompt, instructions, and document content
 
         // Start with system prompt
         promptBuilder.append(systemPrompt)
@@ -175,7 +178,13 @@ class MessageService(
     /**
      * Ask the AI for a response to the user's message
      */
-    fun askAI(userMessage: String, chat: Chat, country: String? = null, language: String? = null, documentContent: String? = null) {
+    fun askAI(
+        userMessage: String,
+        chat: Chat,
+        country: String? = null,
+        language: String? = null,
+        documentContent: String? = null
+    ) {
         val memoryId = chat.id.toString()
         val contextInfo = "for chat ${chat.id}"
 
@@ -239,7 +248,10 @@ class MessageService(
     /**
      * Process document attachment if present
      */
-    private fun processDocument(documentMultipart: org.springframework.web.multipart.MultipartFile?, chat: Chat): Document? {
+    private fun processDocument(
+        documentMultipart: org.springframework.web.multipart.MultipartFile?,
+        chat: Chat
+    ): Document? {
         if (documentMultipart == null || documentMultipart.isEmpty) {
             return null
         }
@@ -260,7 +272,9 @@ class MessageService(
         // List of default titles in different languages
         val defaultTitles = listOf("Новый чат", "Жаңа чат", "New Chat")
 
-        if (chat.messages.size == 1 && defaultTitles.contains(chat.title)) {
+        // Get message count explicitly to avoid LazyInitializationException
+        val messageCount = messageRepository.findByChatId(chat.id).size
+        if (messageCount == 1 && defaultTitles.contains(chat.title)) {
             // Generate title from user message (truncate if too long)
             val titleFromMessage = if (content.length > 50) {
                 content.substring(0, 47) + "..."
@@ -287,10 +301,31 @@ class MessageService(
             role = role,
             document = document
         )
-        chat.messages.add(message)
-        messageRepository.save(message)
-        return message
+        // Don't modify chat.messages directly to avoid LazyInitializationException
+        // Just save the message with the chat reference and let Hibernate handle the relationship
+        return messageRepository.save(message)
     }
+
+    /**
+     * Delete a message and its associated document if it exists
+     */
+    fun deleteMessage(message: Message) {
+        messageRepository.delete(message)
+    }
+
+    /**
+     * Delete messages and its associated document if it exists
+     */
+    fun deleteMessages(messages: List<Message>) {
+        messages.forEach { message ->
+            try {
+                deleteMessage(message)
+            } catch (e: Exception) {
+                logger.error("Error deleting message ${message.id}", e)
+            }
+        }
+    }
+
 
     /**
      * Map a Message entity to a ChatRespDTO
