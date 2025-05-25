@@ -27,7 +27,11 @@ data class Message(
 
     @OneToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "document_id")
-    val document: Document? = null
+    val document: Document? = null,
+
+    @OneToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "image_id")
+    var image: Image? = null
 ) {
     constructor() : this(
         id = 0,
@@ -35,6 +39,7 @@ data class Message(
         content = "",
         createdAt = LocalDateTime.now(),
         chat = Chat(),
-        document = null
+        document = null,
+        image = null
     )
 }

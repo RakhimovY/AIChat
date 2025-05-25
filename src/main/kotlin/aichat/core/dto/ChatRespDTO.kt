@@ -11,5 +11,9 @@ data class ChatRespDTO(
     val chatId: Long,
     val documentId: Long? = null,
     val documentName: String? = null,
-    val documentUrl: String? = null
+    val documentUrl: String? = null,
+    val imageId: Long? = null,
+    val imageName: String? = null,
+    val imageUrl: String? = null,
+    val imageAlt: String? = null
 )

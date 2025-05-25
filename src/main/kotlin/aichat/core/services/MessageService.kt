@@ -6,8 +6,13 @@ import aichat.core.enums.ChatMessageRole
 import aichat.core.localization.Translations
 import aichat.core.models.Chat
 import aichat.core.models.Document
+import aichat.core.models.Image
 import aichat.core.models.Message
 import aichat.core.repository.MessageRepository
+import aichat.core.utils.DTOMapper
+import aichat.core.utils.PromptBuilder
+import aichat.core.utils.RetryUtils
+import org.slf4j.LoggerFactory
 import org.springframework.ai.chat.client.ChatClient
 import org.springframework.ai.chat.client.advisor.MessageChatMemoryAdvisor
 import org.springframework.ai.chat.memory.ChatMemoryRepository
@@ -17,9 +22,7 @@ import org.springframework.ai.chat.messages.AssistantMessage
 import org.springframework.ai.chat.messages.UserMessage
 import org.springframework.jdbc.core.JdbcTemplate
 import org.springframework.stereotype.Service
-import org.springframework.web.servlet.support.ServletUriComponentsBuilder
 import java.io.IOException
-import kotlin.math.pow
 
 @Service
 class MessageService(
@@ -27,57 +30,23 @@ class MessageService(
     private val chatService: ChatService,
     private val userService: UserService,
     private val documentService: DocumentService,
+    private val imageService: ImageService,
+    private val openAIVisionService: OpenAIVisionService,
     private val jdbcTemplate: JdbcTemplate,
     private val chatRepository: aichat.core.repository.ChatRepository,
     chatClientBuilder: ChatClient.Builder,
 ) {
+    // Logger for this class
+    private val logger = LoggerFactory.getLogger(MessageService::class.java)
+
     private val chatMemoryRepository: ChatMemoryRepository =
         JdbcChatMemoryRepository.builder().jdbcTemplate(jdbcTemplate).build()
 
-    // Configure chat memory with a window of messages to provide context for the AI
-    // Increasing maxMessages provides more context but may slow down responses
-    // and increase token usage. 15 is a good balance between context and performance.
     private val chatMemory =
         MessageWindowChatMemory.builder()
             .chatMemoryRepository(chatMemoryRepository)
             .maxMessages(15)
             .build()
-
-    // Cache for country name mapping to avoid repeated string operations
-    private val countryNameCache = mutableMapOf<String, String>()
-
-    // Static system prompt to avoid recreating it for each request
-    val systemPrompt =
-        """
-        Ты - высококвалифицированный юридический ассистент с глубоким знанием правовых систем разных стран.
-        Твоя задача - предоставлять точные, подробные и хорошо структурированные ответы на юридические вопросы.
-
-        Содержание и структура ответов:
-        1. Предоставляй точную и актуальную информацию, основанную на действующем законодательстве страны пользователя
-        2. Всегда цитируй конкретные статьи и пункты законов в формате "Статья X, пункт Y" с правильной нумерацией
-        3. Объясняй юридические термины простым и понятным языком, сохраняя юридическую точность
-        4. Предоставляй исчерпывающие ответы, рассматривая различные аспекты вопроса
-        5. Если вопрос касается толкования законов, указывай на возможные различные интерпретации
-        6. Если вопрос выходит за рамки правовой тематики, укажи это и предложи общую информацию
-        7. Если не можешь найти ответ в законодательстве, честно признай это и предложи, где пользователь может найти нужную информацию
-        8. Сохраняй профессиональный, но доступный тон общения
-
-        Форматирование для лучшей читаемости:
-        1. Структурируй ответы логически, разделяя параграфы пустой строкой
-        2. Выделяй важные моменты **двойными звездочками** вокруг текста
-        3. Используй списки для перечисления пунктов:
-           - Дефисы для ненумерованных списков
-           - Цифры с точкой для нумерованных списков
-
-        Помни, что твои ответы должны быть информативными, хорошо структурированными и полезными для пользователя.
-        """
-
-    // Pre-build language name mapping to avoid repeated string operations
-    private val languageNameMap = mapOf(
-        "ru" to "русском",
-        "kk" to "казахском",
-        "en" to "английском"
-    )
 
     private val chatClient =
         chatClientBuilder.defaultAdvisors(MessageChatMemoryAdvisor(chatMemory)).build()
@@ -97,20 +66,31 @@ class MessageService(
                 document = documentService.saveDocument(messageDTO.document, chat)
             } catch (e: IOException) {
                 // Log error but continue with message creation
-                val logger = org.slf4j.LoggerFactory.getLogger(MessageService::class.java)
                 logger.error("Error saving document: ${e.message}", e)
             }
         }
 
-        val message =
-            Message(
-                chat = chat,
-                content = messageDTO.content,
-                role = ChatMessageRole.user,
-                document = document
-            )
-        chat.messages.add(message)
-        messageRepository.save(message)
+        // Process image if present
+        var image: Image? = null
+        if (messageDTO.image != null && !messageDTO.image.isEmpty) {
+            try {
+                image = imageService.saveImage(messageDTO.image, chat)
+            } catch (e: IOException) {
+                // Log error but continue with message creation
+                logger.error("Error saving image: ${e.message}", e)
+            }
+        }
+
+        // Create and save user message
+        val userMessage = Message(
+            chat = chat,
+            content = messageDTO.content,
+            role = ChatMessageRole.user,
+            document = document,
+            image = image
+        )
+        chat.messages.add(userMessage)
+        messageRepository.save(userMessage)
 
         // Update chat title based on first message if it's a new chat with default title
         if (chat.messages.size == 1 && (chat.title == "Новый чат" || chat.title == "Жаңа чат" || chat.title == "New Chat")) {
@@ -121,205 +101,168 @@ class MessageService(
                 messageDTO.content
             }
             chat.title = titleFromMessage
-            chatRepository.save(chat)
         }
 
-        // Extract document content for AI if present
+        // Extract document content and image info for AI
         val documentContent = document?.let { documentService.extractTextContent(it) }
+        val imageInfo = image?.let { "Image: ${it.name} (${it.contentType})" }
 
-        askAI(messageDTO.content, chat, messageDTO.country, messageDTO.language, documentContent)
+        // Ask AI for a response
+        askAI(messageDTO.content, chat, messageDTO.country, messageDTO.language, documentContent, imageInfo)
 
-        // Generate document URLs for response
-        return chat.messages.map { msg ->
-            val msgDocument = msg.document
-            val baseUrl = ServletUriComponentsBuilder.fromCurrentContextPath().build().toUriString()
+        // Get the last two messages (user message and AI response)
+        val newMessages = messageRepository.findByChatId(chat.id).takeLast(2)
 
-            ChatRespDTO(
-                id = msg.id,
-                role = msg.role,
-                content = msg.content,
-                createdAt = msg.createdAt,
-                chatId = msg.chat.id,
-                documentId = msgDocument?.id,
-                documentName = msgDocument?.name,
-                documentUrl = msgDocument?.let { "$baseUrl/api/documents/${it.id}" }
-            )
-        }
+        // Save the updated chat
+        chatRepository.save(chat)
+
+        // Map messages to DTOs
+        return DTOMapper.mapMessagesToDTO(newMessages)
     }
 
-    // Function to map ISO country codes to full country names with caching
-    private fun getCountryNameByCode(code: String): String {
-        // Check if the country name is already in the cache
-        return countryNameCache.getOrPut(code) {
-            when (code) {
-                "RU" -> "Россия"
-                "KZ" -> "Казахстан"
-                "BY" -> "Беларусь"
-                "UA" -> "Украина"
-                "UZ" -> "Узбекистан"
-                "KG" -> "Кыргызстан"
-                "TJ" -> "Таджикистан"
-                "TM" -> "Туркменистан"
-                "AZ" -> "Азербайджан"
-                "AM" -> "Армения"
-                "GE" -> "Грузия"
-                "MD" -> "Молдова"
-                "US" -> "США"
-                "GB" -> "Великобритания"
-                "DE" -> "Германия"
-                "FR" -> "Франция"
-                "IT" -> "Италия"
-                "ES" -> "Испания"
-                "CN" -> "Китай"
-                "JP" -> "Япония"
-                "IN" -> "Индия"
-                "BR" -> "Бразилия"
-                "CA" -> "Канада"
-                "AU" -> "Австралия"
-                else -> code // Return the code itself if not found in the mapping
-            }
-        }
-    }
 
-    fun askAI(userMessage: String, chat: Chat, country: String? = null, language: String? = null, documentContent: String? = null) {
-        val memoryId = chat.id.toString()
-        val logger = org.slf4j.LoggerFactory.getLogger(MessageService::class.java)
+    /**
+     * Processes an image using GPT-4-Vision
+     * @return true if image was successfully processed, false otherwise
+     */
+    private fun processImageWithVision(
+        userMessage: String,
+        chat: Chat,
+        image: Image,
+        country: String?,
+        language: String?,
+        memoryId: String
+    ): Boolean {
+        logger.info("Message contains an image. Using GPT-4-Vision for analysis.")
 
         try {
+            // Get system prompt from PromptBuilder
+            val visionSystemPrompt = PromptBuilder.buildSystemPrompt(country, language)
+
+            // Call Vision API
+            val aiContent = openAIVisionService.analyzeImage(
+                image = image,
+                prompt = userMessage,
+                systemPrompt = visionSystemPrompt
+            )
+
+            // Add response to chat memory
+            chatMemory.add(memoryId, listOf(AssistantMessage(aiContent)))
+
+            // Create and save assistant message
+            val message = Message(
+                chat = chat,
+                content = aiContent,
+                role = ChatMessageRole.assistant
+            )
+            chat.messages.add(message)
+            messageRepository.save(message)
+
+            return true
+        } catch (e: Exception) {
+            logger.error("Error analyzing image with GPT-4-Vision: ${e.message}", e)
+            logger.info("Falling back to standard text-based AI")
+            return false
+        }
+    }
+
+    /**
+     * Creates and saves an assistant message
+     */
+    private fun saveAssistantMessage(
+        chat: Chat,
+        content: String,
+        role: ChatMessageRole = ChatMessageRole.assistant
+    ): Message {
+        val message = Message(
+            chat = chat,
+            content = content,
+            role = role
+        )
+        chat.messages.add(message)
+        messageRepository.save(message)
+        return message
+    }
+
+    /**
+     * Asks the AI for a response to a user message
+     */
+    fun askAI(
+        userMessage: String,
+        chat: Chat,
+        country: String? = null,
+        language: String? = null,
+        documentContent: String? = null,
+        imageInfo: String? = null
+    ) {
+        val memoryId = chat.id.toString()
+
+        try {
+            // Add user message to chat memory
             chatMemory.add(memoryId, listOf(UserMessage(userMessage)))
 
-            // Create final prompt with country-specific and language-specific instructions
-            // Use StringBuilder with initial capacity to reduce reallocations
-            val promptBuilder = StringBuilder(systemPrompt.length + 1000) // Allocate enough space for the prompt, instructions, and document content
+            // Check if message has an image
+            val latestMessage = chat.messages.lastOrNull { it.role == ChatMessageRole.user }
+            val image = latestMessage?.image
 
-            // Start with system prompt
-            promptBuilder.append(systemPrompt)
-            promptBuilder.append("\n\n")
-
-            // Add country-specific instructions if country is provided
-            if (country != null) {
-                // Map country code to full name if it's a code (using cached value)
-                val countryName = getCountryNameByCode(country)
-
-                promptBuilder.append("Пользователь находится в стране: ")
-                    .append(countryName)
-                    .append(".\n")
-                    .append("Адаптируй свой ответ к правовой системе и законодательству этой страны.\n")
-                    .append("Используй актуальные законы, нормативные акты и правовые документы этой страны.\n")
-                    .append("Если цитируешь законы, конституцию или другие правовые документы, указывай их точные названия и номера статей.\n\n")
+            // If image exists, try to process it with Vision API
+            if (image != null && processImageWithVision(userMessage, chat, image, country, language, memoryId)) {
+                // Image was successfully processed, return early
+                return
             }
 
-            // Add language-specific instructions if language is provided
-            if (language != null) {
-                // Use pre-built language name mapping
-                val languageName = languageNameMap[language] ?: "русском" // Default to Russian if unknown language
-
-                promptBuilder.append("Пользователь предпочитает общение на ")
-                    .append(languageName)
-                    .append(" языке.\n")
-                    .append("Пожалуйста, отвечай на ")
-                    .append(languageName)
-                    .append(" языке.\n\n")
-            }
-
-            // Add document content if provided
-            if (documentContent != null) {
-                promptBuilder.append("Пользователь предоставил следующий документ. Используй информацию из него для ответа на вопрос:\n\n")
-                    .append("--- НАЧАЛО ДОКУМЕНТА ---\n")
-                    .append(documentContent)
-                    .append("\n--- КОНЕЦ ДОКУМЕНТА ---\n\n")
-                    .append("Анализируй информацию из документа и используй ее для ответа на вопрос пользователя. ")
-                    .append("Если документ содержит релевантную информацию, ссылайся на нее в своем ответе.\n\n")
-            }
-
-            // Add user message
-            promptBuilder.append("Вот мой вопрос: ")
-                .append(userMessage)
-
-            val finalPrompt = promptBuilder.toString()
+            // Build prompt using PromptBuilder
+            val finalPrompt = PromptBuilder.buildCompletePrompt(
+                country = country,
+                language = language,
+                documentContent = documentContent,
+                imageInfo = imageInfo,
+                userMessage = userMessage
+            )
 
             logger.info("Sending prompt to AI for chat ${chat.id}, country: ${country ?: "not specified"}, language: ${language ?: "not specified"}")
             val startTime = System.currentTimeMillis()
 
-            // Implement retry mechanism with exponential backoff
-            val maxRetries = 3
-            var retryCount = 0
-            var aiContent: String? = null
-            var lastException: Exception? = null
-
-            while (retryCount < maxRetries && aiContent == null) {
-                try {
-                    // If this is a retry, log it
-                    if (retryCount > 0) {
-                        logger.info("Retry attempt $retryCount for chat ${chat.id}")
-                    }
-
-                    // Call AI service with timeout
-                    aiContent = chatClient.prompt(finalPrompt).call().content()
-                } catch (e: Exception) {
-                    lastException = e
-                    logger.error("Error calling AI service (attempt ${retryCount + 1}): ${e.message}", e)
-
-                    // If we've reached max retries, break
-                    if (retryCount >= maxRetries - 1) {
-                        break
-                    }
-
-                    // Exponential backoff: wait longer between each retry
-                    val backoffTime = (1000L * 2.0.pow(retryCount.toDouble())).toLong()
-                    logger.info("Waiting ${backoffTime}ms before retry")
-                    Thread.sleep(backoffTime)
-                    retryCount++
-                }
-            }
-
-            // If all retries failed, use error message
-            if (aiContent == null) {
-                aiContent = Translations.get("error", language)
-                logger.error("All retry attempts failed for chat ${chat.id}", lastException)
+            // Use RetryUtils to handle retries with exponential backoff
+            val aiContent = try {
+                RetryUtils.withRetryBlocking(
+                    operation = { chatClient.prompt(finalPrompt).call().content() },
+                    logger = logger,
+                    operationName = "AI service call",
+                    contextInfo = "chat ${chat.id}"
+                )
+            } catch (e: Exception) {
+                logger.error("All retry attempts failed for chat ${chat.id}", e)
+                Translations.get("error", language)
             }
 
             val endTime = System.currentTimeMillis()
             logger.info("AI response received in ${endTime - startTime}ms for chat ${chat.id}")
 
+            // Add response to chat memory
             chatMemory.add(memoryId, listOf(AssistantMessage(aiContent)))
 
-            val message =
-                Message(
-                    chat = chat,
-                    content = aiContent,
-                    role = ChatMessageRole.assistant
-                )
-            chat.messages.add(message)
-            messageRepository.save(message)
+            // Create and save assistant message
+            saveAssistantMessage(chat, aiContent)
+
         } catch (e: Exception) {
             logger.error("Unexpected error in askAI: ${e.message}", e)
-            val errorMessage = Message(
+
+            // Create error message
+            saveAssistantMessage(
                 chat = chat,
-                content = Translations.get("error", language),
-                role = ChatMessageRole.assistant
+                content = Translations.get("error", language)
             )
-            chat.messages.add(errorMessage)
-            messageRepository.save(errorMessage)
         }
     }
 
+    /**
+     * Gets all messages for a chat
+     * @param chatId ID of the chat
+     * @return List of message DTOs
+     */
     fun getChatMessages(chatId: Long): List<ChatRespDTO> {
         val messages = messageRepository.findByChatId(chatId)
-        val baseUrl = ServletUriComponentsBuilder.fromCurrentContextPath().build().toUriString()
-
-        return messages.map { msg ->
-            val document = msg.document
-            ChatRespDTO(
-                id = msg.id,
-                role = msg.role,
-                content = msg.content,
-                createdAt = msg.createdAt,
-                chatId = msg.chat.id,
-                documentId = document?.id,
-                documentName = document?.name,
-                documentUrl = document?.let { "$baseUrl/api/documents/${it.id}" }
-            )
-        }
+        return DTOMapper.mapMessagesToDTO(messages)
     }
 }

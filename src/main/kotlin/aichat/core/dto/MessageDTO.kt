@@ -7,5 +7,6 @@ data class MessageDTO(
     val content: String,
     val country: String? = null,
     val language: String? = null,
-    val document: MultipartFile? = null
+    val document: MultipartFile? = null,
+    val image: MultipartFile? = null
 )

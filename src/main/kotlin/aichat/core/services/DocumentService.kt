@@ -162,4 +162,33 @@ class DocumentService(
     fun getDocumentUrl(document: Document): String {
         return minioService.getPresignedUrl(document.objectName)
     }
+
+    /**
+     * Validate if the file is a supported document type
+     * @param file The file to validate
+     * @return True if the file is a supported document type, false otherwise
+     */
+    fun isValidDocumentType(file: MultipartFile): Boolean {
+        val contentType = file.contentType ?: return false
+        return contentType == "application/pdf" || 
+               contentType == "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ||
+               contentType == "application/msword" ||
+               contentType.startsWith("text/") ||
+               contentType == "application/vnd.ms-excel" ||
+               contentType == "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" ||
+               contentType == "application/vnd.ms-powerpoint" ||
+               contentType == "application/vnd.openxmlformats-officedocument.presentationml.presentation" ||
+               contentType == "application/rtf" ||
+               contentType == "text/csv"
+    }
+
+    /**
+     * Validate if the file size is within the allowed limit
+     * @param file The file to validate
+     * @param maxSizeBytes The maximum allowed size in bytes
+     * @return True if the file size is within the limit, false otherwise
+     */
+    fun isValidFileSize(file: MultipartFile, maxSizeBytes: Long = 10 * 1024 * 1024): Boolean {
+        return file.size <= maxSizeBytes
+    }
 }

@@ -4,6 +4,8 @@ import aichat.core.dto.ChatDTO
 import aichat.core.dto.ChatRespDTO
 import aichat.core.dto.MessageDTO
 import aichat.core.services.ChatService
+import aichat.core.services.DocumentService
+import aichat.core.services.ImageService
 import aichat.core.services.MessageService
 import org.springframework.http.MediaType
 import org.springframework.http.ResponseEntity
@@ -16,31 +18,56 @@ import java.security.Principal
 @RequestMapping("api/chat")
 class ChatController(
     private val messageService: MessageService,
-    private val chatService: ChatService
+    private val chatService: ChatService,
+    private val imageService: ImageService,
+    private val documentService: DocumentService
 ) {
-    @PostMapping("/ask")
-    fun chat(@RequestBody messageDTO: MessageDTO, principal: Principal): List<ChatRespDTO> {
-        return messageService.createMessage(messageDTO, principal.name)
-    }
-
-    @PostMapping("/ask-with-document", consumes = [MediaType.MULTIPART_FORM_DATA_VALUE])
-    fun chatWithDocument(
-        @RequestParam("content") content: String,
-        @RequestParam("document") document: MultipartFile,
-        @RequestParam("chatId", required = false) chatId: Long?,
-        @RequestParam("country", required = false) country: String?,
-        @RequestParam("language", required = false) language: String?,
-        principal: Principal
+    @PostMapping(
+        "/ask",
+        consumes = [MediaType.APPLICATION_JSON_VALUE, MediaType.MULTIPART_FORM_DATA_VALUE, "multipart/form-data;boundary=*;charset=UTF-8"]
+    )
+    fun chat(
+        principal: Principal,
+        @RequestParam(value = "content", required = false) contentParam: String? = null,
+        @RequestParam(value = "chatId", required = false) chatIdParam: Long? = null,
+        @RequestParam(value = "country", required = false) countryParam: String? = null,
+        @RequestParam(value = "language", required = false) languageParam: String? = null,
+        @RequestParam(value = "document", required = false) documentParam: MultipartFile? = null,
+        @RequestParam(value = "image", required = false) imageParam: MultipartFile? = null,
+        @RequestBody(required = false) messageDTO: MessageDTO? = null
     ): List<ChatRespDTO> {
-        // Create MessageDTO from form data
-        val messageDTO = MessageDTO(
-            chatId = chatId,
-            content = content,
-            country = country,
-            language = language,
-            document = document
-        )
-        return messageService.createMessage(messageDTO, principal.name)
+        val finalMessageDTO = if (messageDTO != null) {
+            messageDTO
+        } else {
+            val content = contentParam ?: throw IllegalArgumentException("Content is required")
+            if (documentParam != null && !documentParam.isEmpty) {
+                if (!documentService.isValidDocumentType(documentParam)) {
+                    throw IllegalArgumentException("Unsupported document type. Only PDF, Word, Excel, PowerPoint, text, and CSV files are supported.")
+                }
+                if (!documentService.isValidFileSize(documentParam)) {
+                    throw IllegalArgumentException("Document size exceeds the maximum allowed size (10MB).")
+                }
+            }
+            if (imageParam != null && !imageParam.isEmpty) {
+                if (!imageService.isValidImageType(imageParam)) {
+                    throw IllegalArgumentException("Unsupported image type. Only JPG, PNG, and WebP are supported.")
+                }
+                if (!imageService.isValidFileSize(imageParam)) {
+                    throw IllegalArgumentException("Image size exceeds the maximum allowed size (50MB).")
+                }
+            }
+
+            MessageDTO(
+                chatId = chatIdParam,
+                content = content,
+                country = countryParam,
+                language = languageParam,
+                document = documentParam,
+                image = imageParam
+            )
+        }
+
+        return messageService.createMessage(finalMessageDTO, principal.name)
     }
 
     @GetMapping("/user")
@@ -58,4 +85,5 @@ class ChatController(
         chatService.deleteChat(chatId)
         return ResponseEntity.ok().build()
     }
+
 }

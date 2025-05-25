@@ -48,7 +48,7 @@ class WebSecurityConfig(
     @Bean
     fun daoAuthenticationProvider(): DaoAuthenticationProvider {
         val authProvider = DaoAuthenticationProvider()
-        authProvider.setUserDetailsService(userService)
+        authProvider.userDetailsService = userService
         authProvider.setPasswordEncoder(passwordEncoder)
         return authProvider
     }
@@ -61,7 +61,7 @@ class WebSecurityConfig(
     @Bean
     fun corsConfigurationSource(): CorsConfigurationSource {
         val configuration = CorsConfiguration()
-        configuration.allowedOrigins = listOf("http://localhost:3000", "https://ada5-185-151-41-100.ngrok-free.app/")
+        configuration.allowedOrigins = listOf("http://localhost:3000", "https://a6d5-37-151-195-141.ngrok-free.app/")
         configuration.allowedMethods = listOf("GET", "POST", "PUT", "DELETE", "OPTIONS")
         configuration.allowedHeaders = listOf("Authorization", "Content-Type", "X-Requested-With")
         configuration.allowCredentials = true
