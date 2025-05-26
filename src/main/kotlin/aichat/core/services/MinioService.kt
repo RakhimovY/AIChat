@@ -1,7 +1,6 @@
 package aichat.core.services
 
 import io.minio.*
-import io.minio.errors.*
 import io.minio.http.Method
 import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Autowired
@@ -10,8 +9,6 @@ import org.springframework.stereotype.Service
 import org.springframework.web.multipart.MultipartFile
 import java.io.ByteArrayInputStream
 import java.io.InputStream
-import java.security.InvalidKeyException
-import java.security.NoSuchAlgorithmException
 import java.util.*
 import java.util.concurrent.TimeUnit
 
@@ -31,7 +28,7 @@ class MinioService @Autowired constructor(
     fun uploadFile(file: MultipartFile, objectName: String? = null): String {
         try {
             val finalObjectName = objectName ?: "${UUID.randomUUID()}-${file.originalFilename}"
-            
+
             // Upload the file to MinIO
             minioClient.putObject(
                 PutObjectArgs.builder()
@@ -41,7 +38,7 @@ class MinioService @Autowired constructor(
                     .contentType(file.contentType)
                     .build()
             )
-            
+
             logger.info("File uploaded successfully: {}", finalObjectName)
             return finalObjectName
         } catch (e: Exception) {
@@ -60,8 +57,7 @@ class MinioService @Autowired constructor(
     fun uploadBytes(bytes: ByteArray, objectName: String, contentType: String): String {
         try {
             val inputStream = ByteArrayInputStream(bytes)
-            
-            // Upload the byte array to MinIO
+
             minioClient.putObject(
                 PutObjectArgs.builder()
                     .bucket(bucketName)
@@ -70,7 +66,7 @@ class MinioService @Autowired constructor(
                     .contentType(contentType)
                     .build()
             )
-            
+
             logger.info("Bytes uploaded successfully: {}", objectName)
             return objectName
         } catch (e: Exception) {
@@ -86,14 +82,13 @@ class MinioService @Autowired constructor(
      */
     fun downloadFile(objectName: String): InputStream {
         try {
-            // Get the object from MinIO
             val response = minioClient.getObject(
                 GetObjectArgs.builder()
                     .bucket(bucketName)
                     .`object`(objectName)
                     .build()
             )
-            
+
             logger.info("File downloaded successfully: {}", objectName)
             return response
         } catch (e: Exception) {
@@ -110,7 +105,6 @@ class MinioService @Autowired constructor(
      */
     fun getPresignedUrl(objectName: String, expiryTime: Int = 7200): String {
         try {
-            // Generate a presigned URL
             val url = minioClient.getPresignedObjectUrl(
                 GetPresignedObjectUrlArgs.builder()
                     .method(Method.GET)
@@ -119,7 +113,7 @@ class MinioService @Autowired constructor(
                     .expiry(expiryTime, TimeUnit.SECONDS)
                     .build()
             )
-            
+
             logger.info("Presigned URL generated successfully: {}", url)
             return url
         } catch (e: Exception) {
@@ -141,7 +135,7 @@ class MinioService @Autowired constructor(
                     .`object`(objectName)
                     .build()
             )
-            
+
             logger.info("File deleted successfully: {}", objectName)
         } catch (e: Exception) {
             logger.error("Error deleting file from MinIO: {}", e.message, e)

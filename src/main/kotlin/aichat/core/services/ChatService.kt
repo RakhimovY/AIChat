@@ -35,12 +35,9 @@ class ChatService(
 
     fun deleteChat(id: Long) {
         val chat = getChatById(id)
-        // First delete documents to avoid transient object references
         documentService.deleteDocumentByChatId(id)
-        // Then delete messages - fetch them explicitly to avoid LazyInitializationException
         val messages = messageRepository.findByChatId(id)
         messageRepository.deleteAll(messages)
-        // Finally delete the chat
         chatRepository.delete(chat)
     }
 
