@@ -1,6 +1,7 @@
 package aichat.core.models
 
 import aichat.core.enums.ChatMessageRole
+import com.fasterxml.jackson.annotation.JsonBackReference
 import jakarta.persistence.*
 import java.time.LocalDateTime
 
@@ -23,6 +24,7 @@ data class Message(
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "chat_id", nullable = false)
+    @JsonBackReference
     val chat: Chat,
 
     @OneToOne(fetch = FetchType.LAZY)

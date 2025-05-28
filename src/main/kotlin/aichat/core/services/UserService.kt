@@ -109,8 +109,8 @@ class UserService(
     }
 
     override fun loadUserByUsername(username: String): UserDetails {
-        val user = userRepository.getUserByEmail(username)
-        return user.get().mapToUserDetails()
+        val user = userRepository.getUserByEmail(username).orElseThrow { UserNotFounded() }
+        return user.mapToUserDetails()
     }
 
     private fun User.mapToUserDetails(): UserDetails {

@@ -1,6 +1,6 @@
 package aichat.web
 
-import aichat.core.models.User
+import aichat.core.dto.UserDto
 import aichat.core.services.UserService
 import org.springframework.http.ResponseEntity
 import org.springframework.security.core.annotation.AuthenticationPrincipal
@@ -22,22 +22,36 @@ class UserController(
     fun updateProfile(
         @RequestBody request: UpdateProfileRequest,
         @AuthenticationPrincipal userDetails: UserDetails
-    ): ResponseEntity<User> {
+    ): ResponseEntity<UserDto> {
         val user = userService.getUserByEmail(userDetails.username)
-        
-        // Update user fields
-        user.email = request.email
-        user.name = request.name
-        user.country = request.country
-        
-        return userService.updateUserById(user.id, user)
+        val updatedUser = userService.updateUserById(user.id, user).body!!
+
+        return ResponseEntity.ok(
+            UserDto(
+                updatedUser.id,
+                updatedUser.email,
+                updatedUser.name,
+                updatedUser.country,
+                updatedUser.createdAt
+            )
+        )
     }
-    
+
     @GetMapping("/profile")
     fun getProfile(
         @AuthenticationPrincipal userDetails: UserDetails
-    ): ResponseEntity<User> {
+    ): ResponseEntity<UserDto> {
         val user = userService.getUserByEmail(userDetails.username)
-        return ResponseEntity.ok(user)
+
+        // Convert to DTO to avoid circular references
+        return ResponseEntity.ok(
+            UserDto(
+                user.id,
+                user.email,
+                user.name,
+                user.country,
+                user.createdAt
+            )
+        )
     }
 }
