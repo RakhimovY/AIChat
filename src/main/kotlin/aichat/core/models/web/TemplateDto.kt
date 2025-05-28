@@ -14,6 +14,7 @@ data class TemplateDto(
     val previewImage: String?,
     val createdAt: LocalDateTime,
     val updatedAt: LocalDateTime,
+    val content: String,
     val fields: List<TemplateFieldDto>
 ) {
     companion object {
@@ -26,6 +27,7 @@ data class TemplateDto(
                 previewImage = template.previewImage,
                 createdAt = template.createdAt,
                 updatedAt = template.updatedAt,
+                content = template.content,
                 fields = template.fields.map { TemplateFieldDto.fromEntity(it) }
             )
         }
@@ -57,7 +59,7 @@ data class TemplateFieldDto(
                     null
                 }
             }
-            
+
             return TemplateFieldDto(
                 id = field.id,
                 fieldId = field.fieldId,

@@ -9,6 +9,7 @@ import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 
 @Configuration
+@org.springframework.boot.autoconfigure.condition.ConditionalOnProperty(name = ["spring.profiles.active"], havingValue = "!test", matchIfMissing = true)
 class MinioConfig {
     private val logger = LoggerFactory.getLogger(MinioConfig::class.java)
 
@@ -27,7 +28,7 @@ class MinioConfig {
     @Bean
     fun minioClient(): MinioClient {
         logger.info("Initializing MinIO client with endpoint: {}", endpoint)
-        
+
         val minioClient = MinioClient.builder()
             .endpoint(endpoint)
             .credentials(accessKey, secretKey)

@@ -1,4 +1,4 @@
-package aichat.core.exception
+package aichat.core.exceptions
 
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
@@ -32,5 +32,15 @@ class GlobalExceptionHandler {
     @ExceptionHandler(UserNotFounded::class)
     fun handleUserNotFounded(ex: UserNotFounded): ResponseEntity<String> {
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(ex.message)
+    }
+
+    @ExceptionHandler(TemplateNotFoundException::class)
+    fun handleTemplateNotFoundException(ex: TemplateNotFoundException): ResponseEntity<String> {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(ex.message)
+    }
+
+    @ExceptionHandler(DocumentGenerationException::class)
+    fun handleDocumentGenerationException(ex: DocumentGenerationException): ResponseEntity<String> {
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(ex.message)
     }
 }

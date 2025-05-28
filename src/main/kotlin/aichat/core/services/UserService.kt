@@ -3,8 +3,8 @@ package aichat.core.services
 import aichat.core.dto.GoogleAuthRequest
 import aichat.core.dto.PasswordResetResponse
 import aichat.core.dto.UserDto
-import aichat.core.exception.UserAlreadyExistException
-import aichat.core.exception.UserNotFounded
+import aichat.core.exceptions.UserAlreadyExistException
+import aichat.core.exceptions.UserNotFounded
 import aichat.core.models.PasswordResetToken
 import aichat.core.models.User
 import aichat.core.repository.PasswordResetTokenRepository

@@ -1,12 +1,11 @@
 package aichat.core.services.web
 
-import aichat.core.models.User
 import aichat.core.models.web.Template
 import aichat.core.models.web.WebDocument
 import aichat.core.models.web.WebDocumentDto
 import aichat.core.repository.UserRepository
-import aichat.core.repository.web.TemplateRepository
 import aichat.core.repository.web.WebDocumentRepository
+import aichat.core.repository.web.WebTemplateRepository
 import aichat.core.services.MinioService
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.module.kotlin.readValue
@@ -27,7 +26,7 @@ import java.util.*
 @Service
 class WebDocumentService(
     private val webDocumentRepository: WebDocumentRepository,
-    private val templateRepository: TemplateRepository,
+    private val webTemplateRepository: WebTemplateRepository,
     private val userRepository: UserRepository,
     private val minioService: MinioService,
     private val objectMapper: ObjectMapper
@@ -75,7 +74,7 @@ class WebDocumentService(
         val user = userRepository.getUserByEmail(username)
             .orElseThrow { IllegalArgumentException("User not found: $username") }
 
-        val template = templateRepository.findById(request.templateId).orElse(null)
+        val template = webTemplateRepository.findById(request.templateId).orElse(null)
             ?: throw IllegalArgumentException("Template not found: ${request.templateId}")
 
         // Generate a title if not provided
@@ -117,7 +116,11 @@ class WebDocumentService(
             title = request.title ?: existingDocument.title,
             user = existingDocument.user,
             template = existingDocument.template,
-            values = objectMapper.writeValueAsString(request.values ?: objectMapper.readValue<Map<String, Any>>(existingDocument.values)),
+            values = objectMapper.writeValueAsString(
+                request.values ?: objectMapper.readValue<Map<String, Any>>(
+                    existingDocument.values
+                )
+            ),
             createdAt = existingDocument.createdAt,
             updatedAt = LocalDateTime.now()
         )
@@ -153,10 +156,10 @@ class WebDocumentService(
     @Transactional(readOnly = true)
     fun exportDocument(request: DocumentExportRequest, username: String): Triple<ByteArray, String, String> {
         logger.info("Exporting document with template: ${request.templateId} for user: $username in format: ${request.format}")
-        val user = userRepository.getUserByEmail(username)
+        userRepository.getUserByEmail(username)
             .orElseThrow { IllegalArgumentException("User not found: $username") }
 
-        val template = templateRepository.findById(request.templateId).orElse(null)
+        val template = webTemplateRepository.findById(request.templateId).orElse(null)
             ?: throw IllegalArgumentException("Template not found: ${request.templateId}")
 
         // Generate document content
@@ -237,7 +240,7 @@ class WebDocumentService(
             val paragraph: XWPFParagraph = document.createParagraph()
             val run: XWPFRun = paragraph.createRun()
             run.setText(paragraphText)
-            run.setFontFamily("Calibri")
+            run.fontFamily = "Calibri"
             run.fontSize = 11
         }
 

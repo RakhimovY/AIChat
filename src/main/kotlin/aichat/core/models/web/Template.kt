@@ -1,6 +1,5 @@
 package aichat.core.models.web
 
-import com.fasterxml.jackson.databind.ObjectMapper
 import jakarta.persistence.*
 import java.time.LocalDateTime
 

@@ -3,6 +3,7 @@ package aichat.web.controllers
 import aichat.core.models.web.TemplateDto
 import aichat.core.services.web.TemplateService
 import org.slf4j.LoggerFactory
+import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.http.ResponseEntity
 import org.springframework.security.core.annotation.AuthenticationPrincipal
 import org.springframework.security.core.userdetails.UserDetails
@@ -11,7 +12,7 @@ import org.springframework.web.bind.annotation.*
 @RestController
 @RequestMapping("/api/web/templates")
 class WebTemplateController(
-    private val templateService: TemplateService
+    @Qualifier("webTemplateService") private val templateService: TemplateService
 ) {
     private val logger = LoggerFactory.getLogger(WebTemplateController::class.java)
 
@@ -28,14 +29,14 @@ class WebTemplateController(
         @AuthenticationPrincipal userDetails: UserDetails
     ): ResponseEntity<List<TemplateDto>> {
         logger.info("Getting all templates for user: ${userDetails.username}, category: $category, query: $query")
-        
+
         val templates = when {
             category != null && query != null -> templateService.searchTemplatesByCategoryAndQuery(category, query)
             category != null -> templateService.getTemplatesByCategory(category)
             query != null -> templateService.searchTemplates(query)
             else -> templateService.getAllTemplates()
         }
-        
+
         return ResponseEntity.ok(templates.map { TemplateDto.fromEntity(it) })
     }
 
@@ -50,10 +51,10 @@ class WebTemplateController(
         @AuthenticationPrincipal userDetails: UserDetails
     ): ResponseEntity<TemplateDto> {
         logger.info("Getting template with ID: $id for user: ${userDetails.username}")
-        
+
         val template = templateService.getTemplateById(id)
             ?: return ResponseEntity.notFound().build()
-        
+
         return ResponseEntity.ok(TemplateDto.fromEntity(template))
     }
 }

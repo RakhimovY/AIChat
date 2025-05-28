@@ -1,4 +1,4 @@
-package aichat.core.exception
+package aichat.core.exceptions
 
 class UserAlreadyExistException(errorMessage: String = "User already exist") : Exception(errorMessage)
 class UserNotFounded() : Exception("User not founded")

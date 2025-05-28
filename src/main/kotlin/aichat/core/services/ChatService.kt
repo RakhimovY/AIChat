@@ -1,7 +1,7 @@
 package aichat.core.services
 
 import aichat.core.dto.ChatDTO
-import aichat.core.exception.ChatNotFounded
+import aichat.core.exceptions.ChatNotFounded
 import aichat.core.localization.Translations
 import aichat.core.models.Chat
 import aichat.core.models.User
